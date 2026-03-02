@@ -15,26 +15,25 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/Vulns_Found-50+-red?style=for-the-badge" />
-  <img src="https://img.shields.io/badge/Target-CrowdStrike_Falcon-critical?style=for-the-badge" />
 </p>
 
 ---
 
 ## 🏆 Real-World Results
 
-> **50+ DLL hijacking vulnerabilities discovered in CrowdStrike Falcon** using DLLHijackHunter in a single scan — all running as `NT AUTHORITY\SYSTEM` with auto-start persistence.
+> **50+ DLL hijacking vulnerabilities discovered across enterprise security software** using DLLHijackHunter in a single scan — including services running as `NT AUTHORITY\SYSTEM` with auto-start persistence.
 
-| Finding | Target | DLL | Type | Score | Runs As |
-|---|---|---|---|---|---|
-| #1 | CSFalconService.exe | ntdll.dll | .local Redirect | **9.3** | SYSTEM |
-| #2 | CSFalconService.exe | bcrypt.dll | .local Redirect | **9.3** | SYSTEM |
-| #3 | CSFalconService.exe | advapi32.dll | .local Redirect | **9.3** | SYSTEM |
-| #4 | CSFalconService.exe | kernel32.dll | .local Redirect | **9.3** | SYSTEM |
-| #5 | CSFalconService.exe | rpcrt4.dll | .local Redirect | **9.3** | SYSTEM |
-| ... | CSFalconService.exe | +26 more DLLs | .local + Search Order | **9.1-9.3** | SYSTEM |
-| #54-60 | CSFalconService.exe | Various | Medium confidence | **5.1** | SYSTEM |
+| Finding | DLL | Type | Score | Runs As |
+|---|---|---|---|---|
+| #1 | ntdll.dll | .local Redirect | **9.3** | SYSTEM |
+| #2 | bcrypt.dll | .local Redirect | **9.3** | SYSTEM |
+| #3 | advapi32.dll | .local Redirect | **9.3** | SYSTEM |
+| #4 | kernel32.dll | .local Redirect | **9.3** | SYSTEM |
+| #5 | rpcrt4.dll | .local Redirect | **9.3** | SYSTEM |
+| ... | +26 more DLLs | .local + Search Order | **9.1-9.3** | SYSTEM |
+| #54-60 | Various | Medium confidence | **5.1** | SYSTEM |
 
-All 53 HIGH findings achieve **privilege escalation to SYSTEM** via an auto-start service that **survives reboot** — the highest-impact hijack scenario possible.
+53 HIGH findings achieve **privilege escalation to SYSTEM** via auto-start services that **survive reboot** — the highest-impact hijack scenario possible.
 
 ---
 
@@ -327,10 +326,10 @@ CONFIRMED  0
       LOW  0
 
 ┌─#1 [HIGH] Score: 9.3 | Confidence: 85% | Impact: 9.8──────────────────────────────┐
-│ Binary:   C:\Program Files\CrowdStrike\CSFalconService.exe                         │
+│ Binary:   C:\Program Files\ExampleApp\ExampleService.exe                           │
 │ DLL:      ntdll.dll (DotLocal)                                                     │
-│ Path:     C:\...\CSFalconService.exe.local\ntdll.dll                                │
-│ Trigger:  Service "CSFalconService" (AUTO_START)                                   │
+│ Path:     C:\...\ExampleService.exe.local\ntdll.dll                                 │
+│ Trigger:  Service "ExampleService" (AUTO_START)                                    │
 │ Runs As:  NT AUTHORITY\SYSTEM                                                      │
 │ Survives Reboot: √ Yes                                                             │
 │ Use Cases: Privilege Escalation, Persistence                                       │
