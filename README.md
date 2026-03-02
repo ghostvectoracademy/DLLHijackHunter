@@ -380,6 +380,6 @@ MIT License — See [LICENSE](LICENSE) for details.
 ---
 
 <p align="center">
-  <strong>Built by <a href="https://github.com/ghostvectoracademy">Ghost Vector Academy</a></strong><br/>
-  <em>Offensive Security Research & Tools</em>
+  <strong>Built by <a href="https://github.com/ghostvectoracademy">GhostVector Academy</a></strong><br/>
+  <em>Elite Cybersecurity with Zero Paywalls.</em>
 </p>
