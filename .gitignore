@@ -6,3 +6,5 @@ obj/
 *.json
 nul
 tmp/
+release/
+publish/
