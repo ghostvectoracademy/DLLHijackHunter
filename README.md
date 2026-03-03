@@ -83,37 +83,6 @@ flowchart TB
     style Phase3 fill:#1a1a2e,stroke:#f85149,color:#c9d1d9
     style Phase4 fill:#1a1a2e,stroke:#3fb950,color:#c9d1d9
 ```
-
----
-
-## 📊 Codebase Stats
-
-| Metric | Value |
-|---|---|
-| **Total Lines of Code** | ~4,900 |
-| **C# Source Files** | 39 |
-| **Canary Templates (C)** | 3 |
-| **Hijack Types Detected** | 10 |
-| **Discovery Sources** | 6 (Services, Tasks, Startup, COM, Run Keys, ETW) |
-| **Filter Gates** | 8 (3 hard + 5 soft) |
-| **Scan Profiles** | 4 (Aggressive, Strict, Safe, Red Team) |
-| **Confidence Tiers** | 5 (Confirmed, High, Medium, Low, Info) |
-| **Output Formats** | 3 (Console, JSON, HTML) |
-
-### Module Breakdown
-
-```
-src/DLLHijackHunter/
-├── Discovery/         9 files │ 1,534 LOC │ Static + ETW engines, PE analysis
-├── Filters/          10 files │   682 LOC │ 3 hard gates + 5 soft gates
-├── Canary/            3 files │   790 LOC │ DLL builder, trigger, confirmation
-├── Models/            4 files │   254 LOC │ Data models, profiles, enums
-├── Scoring/           1 file  │   101 LOC │ Tiered scoring algorithm
-├── Reporting/         2 files │   270 LOC │ Console, JSON, HTML reports
-├── Native/            3 files │   449 LOC │ P/Invoke, ACL checks, tokens
-└── Program.cs         1 file  │   381 LOC │ CLI entry point
-```
-
 ---
 
 ## 🔑 Key Features
