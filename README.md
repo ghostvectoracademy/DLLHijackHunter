@@ -23,16 +23,6 @@
 
 > **50+ DLL hijacking vulnerabilities discovered across enterprise security software** using DLLHijackHunter in a single scan — including services running as `NT AUTHORITY\SYSTEM` with auto-start persistence.
 
-| Finding | DLL | Type | Score | Runs As |
-|---|---|---|---|---|
-| #1 | ntdll.dll | .local Redirect | **9.3** | SYSTEM |
-| #2 | bcrypt.dll | .local Redirect | **9.3** | SYSTEM |
-| #3 | advapi32.dll | .local Redirect | **9.3** | SYSTEM |
-| #4 | kernel32.dll | .local Redirect | **9.3** | SYSTEM |
-| #5 | rpcrt4.dll | .local Redirect | **9.3** | SYSTEM |
-| ... | +26 more DLLs | .local + Search Order | **9.1-9.3** | SYSTEM |
-| #54-60 | Various | Medium confidence | **5.1** | SYSTEM |
-
 53 HIGH findings achieve **privilege escalation to SYSTEM** via auto-start services that **survive reboot** — the highest-impact hijack scenario possible.
 
 ---
@@ -325,19 +315,6 @@ CONFIRMED  0
    MEDIUM  ████ 7
       LOW  0
 
-┌─#1 [HIGH] Score: 9.3 | Confidence: 85% | Impact: 9.8──────────────────────────────┐
-│ Binary:   C:\Program Files\ExampleApp\ExampleService.exe                           │
-│ DLL:      ntdll.dll (DotLocal)                                                     │
-│ Path:     C:\...\ExampleService.exe.local\ntdll.dll                                 │
-│ Trigger:  Service "ExampleService" (AUTO_START)                                    │
-│ Runs As:  NT AUTHORITY\SYSTEM                                                      │
-│ Survives Reboot: √ Yes                                                             │
-│ Use Cases: Privilege Escalation, Persistence                                       │
-│                                                                                    │
-│  ⚠ KnownDLL bypassed via .local redirection                                       │
-│  ⚠ Canary not tested - requires elevation                                         │
-└────────────────────────────────────────────────────────────────────────────────────┘
-  ... 59 more findings ...
 ```
 
 ---
@@ -381,12 +358,6 @@ DLLHijackHunter is a **detection** tool, not an exploitation framework:
 - 🔄 Proxy exports keep the target application **fully functional**
 - 📝 Use `--profile safe` for production systems (no file writes, no triggers)
 - ⚠️ Always get proper authorization before scanning systems you don't own
-
----
-
-## 📄 License
-
-MIT License — See [LICENSE](LICENSE) for details.
 
 ---
 
