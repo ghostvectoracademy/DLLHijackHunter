@@ -7,9 +7,9 @@ namespace DLLHijackHunter.Discovery;
 
 public static class ScheduledTaskEnumerator
 {
-    public static List<ExecutionContext> EnumerateScheduledTasks()
+    public static List<DiscoveryContext> EnumerateScheduledTasks()
     {
-        var results = new List<ExecutionContext>();
+        var results = new List<DiscoveryContext>();
 
         try
         {
@@ -24,7 +24,7 @@ public static class ScheduledTaskEnumerator
         return results;
     }
 
-    private static void EnumerateFolder(TaskFolder folder, List<ExecutionContext> results)
+    private static void EnumerateFolder(TaskFolder folder, List<DiscoveryContext> results)
     {
         try
         {
@@ -64,7 +64,7 @@ public static class ScheduledTaskEnumerator
                             bool isAutoStart = task.Definition.Triggers?.Any(t =>
                                 t is BootTrigger || t is LogonTrigger) ?? false;
 
-                            results.Add(new ExecutionContext
+                            results.Add(new DiscoveryContext
                             {
                                 BinaryPath = binaryPath,
                                 TriggerType = TriggerType.ScheduledTask,

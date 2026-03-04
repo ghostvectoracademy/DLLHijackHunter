@@ -15,9 +15,9 @@ public static class StartupItemEnumerator
         @"SOFTWARE\Wow6432Node\Microsoft\Windows\CurrentVersion\RunOnce"
     };
 
-    public static List<ExecutionContext> EnumerateStartupItems()
+    public static List<DiscoveryContext> EnumerateStartupItems()
     {
-        var results = new List<ExecutionContext>();
+        var results = new List<DiscoveryContext>();
 
         // HKLM Run keys (run as SYSTEM context during startup)
         foreach (var keyPath in RunKeyPaths)
@@ -51,7 +51,7 @@ public static class StartupItemEnumerator
     }
 
     private static void EnumerateRunKey(RegistryKey root, string keyPath,
-        string runAs, List<ExecutionContext> results)
+        string runAs, List<DiscoveryContext> results)
     {
         try
         {
@@ -66,7 +66,7 @@ public static class StartupItemEnumerator
                 string binaryPath = ParseCommandPath(value);
                 if (!File.Exists(binaryPath)) continue;
 
-                results.Add(new ExecutionContext
+                results.Add(new DiscoveryContext
                 {
                     BinaryPath = binaryPath,
                     TriggerType = TriggerType.RunKey,
@@ -81,7 +81,7 @@ public static class StartupItemEnumerator
     }
 
     private static void EnumerateStartupFolder(string folderPath, string runAs,
-        List<ExecutionContext> results)
+        List<DiscoveryContext> results)
     {
         if (!Directory.Exists(folderPath)) return;
 
@@ -95,7 +95,7 @@ public static class StartupItemEnumerator
                     string binaryPath = file;
                     // TODO: resolve .lnk shortcuts to their target
 
-                    results.Add(new ExecutionContext
+                    results.Add(new DiscoveryContext
                     {
                         BinaryPath = binaryPath,
                         TriggerType = TriggerType.Startup,
@@ -110,7 +110,7 @@ public static class StartupItemEnumerator
         catch { }
     }
 
-    private static void EnumerateAppInitDlls(List<ExecutionContext> results)
+    private static void EnumerateAppInitDlls(List<DiscoveryContext> results)
     {
         try
         {
@@ -125,7 +125,7 @@ public static class StartupItemEnumerator
             if (!string.IsNullOrEmpty(appInitDlls))
             {
                 // AppInit_DLLs are loaded into every user-mode process
-                results.Add(new ExecutionContext
+                results.Add(new DiscoveryContext
                 {
                     BinaryPath = appInitDlls,
                     TriggerType = TriggerType.Startup,
@@ -139,7 +139,7 @@ public static class StartupItemEnumerator
         catch { }
     }
 
-    private static void EnumerateIFEO(List<ExecutionContext> results)
+    private static void EnumerateIFEO(List<DiscoveryContext> results)
     {
         try
         {
@@ -157,7 +157,7 @@ public static class StartupItemEnumerator
 
                 if (!string.IsNullOrEmpty(debugger))
                 {
-                    results.Add(new ExecutionContext
+                    results.Add(new DiscoveryContext
                     {
                         BinaryPath = ParseCommandPath(debugger),
                         TriggerType = TriggerType.Startup,

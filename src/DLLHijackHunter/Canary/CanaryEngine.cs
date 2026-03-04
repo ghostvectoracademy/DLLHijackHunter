@@ -15,7 +15,8 @@ public class CanaryEngine
         _profile = profile;
     }
 
-    public async Task<List<HijackCandidate>> ConfirmAsync(List<HijackCandidate> candidates)
+    public async Task<List<HijackCandidate>> ConfirmAsync(List<HijackCandidate> candidates,
+        CancellationToken cancellationToken = default)
     {
         if (!_profile.RunCanary)
         {
@@ -34,6 +35,12 @@ public class CanaryEngine
 
                 foreach (var candidate in candidates)
                 {
+                    if (cancellationToken.IsCancellationRequested)
+                    {
+                        AnsiConsole.MarkupLine("[yellow]Canary testing cancelled.[/]");
+                        break;
+                    }
+
                     task.Increment(1);
 
                     // Skip candidates that can't be triggered automatically
