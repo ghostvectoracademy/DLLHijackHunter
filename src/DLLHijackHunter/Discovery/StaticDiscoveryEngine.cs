@@ -1,8 +1,8 @@
-// src/DLLHijackHunter/Discovery/StaticDiscoveryEngine.cs
-
 using DLLHijackHunter.Models;
 using DLLHijackHunter.Native;
 using Spectre.Console;
+using System.Reflection;
+using System.Text.Json;
 
 namespace DLLHijackHunter.Discovery;
 
@@ -10,69 +10,39 @@ public class StaticDiscoveryEngine
 {
     private readonly ScanProfile _profile;
 
-    private static readonly HashSet<string> PhantomDllDatabase = new(StringComparer.OrdinalIgnoreCase)
+    private static readonly Lazy<HashSet<string>> PhantomDllDatabase = new(LoadPhantomDlls);
+
+    private static HashSet<string> LoadPhantomDlls()
     {
-        // ─── Classic Windows Phantom DLLs ───
-        "wlbsctrl.dll", "wlanhlp.dll", "wlanapi.dll", "dsparse.dll",
-        "ualapi.dll", "tsmsisrv.dll", "taborjt.dll", "srvcli.dll",
-        "sxs.dll", "ncobjapi.dll", "msdmo.dll", "msfte.dll",
-        "windowscodecs.dll", "propsys.dll", "ntmarta.dll",
-        "edgegdi.dll", "phoneinfo.dll", "IKEEXT.dll",
+        var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        try
+        {
+            var assembly = Assembly.GetExecutingAssembly();
+            using var stream = assembly.GetManifestResourceStream(
+                "DLLHijackHunter.Resources.phantom_dlls.json");
+            if (stream == null) return set;
 
-        // ─── Windows 10/11 Phantom DLLs ───
-        "profapi.dll", "fltLib.dll", "wer.dll", "dxgi.dll",
-        "d3d11.dll", "d3d12.dll", "vulkan-1.dll",
-        "amsi.dll", "clbcatq.dll", "msasn1.dll",
-        "dwmapi.dll", "uxtheme.dll", "textinputframework.dll",
-        "coreuicomponents.dll", "coremessaging.dll",
-        "WptsExtensions.dll", "ondemandconnroutehelper.dll",
+            using var reader = new StreamReader(stream);
+            string json = reader.ReadToEnd();
 
-        // ─── .NET / CLR Phantom DLLs ───
-        "mscoree.dll", "clr.dll", "mscoreei.dll",
-        "diasymreader.dll", "dbghelp.dll",
+            using var doc = JsonDocument.Parse(json);
+            var categories = doc.RootElement.GetProperty("categories");
 
-        // ─── Common Application Phantom DLLs ───
-        "version.dll", "userenv.dll", "winhttp.dll",
-        "httpapi.dll", "crypt32.dll", "cryptsp.dll",
-        "cryptbase.dll", "gpapi.dll", "dpapi.dll",
-        "logoncli.dll", "samcli.dll", "netutils.dll",
-        "wkscli.dll", "BrowserSvc.dll", "FwRemoteSvr.dll",
-
-        // ─── Service-specific Phantom DLLs ───
-        "iertutil.dll", "cabinet.dll", "msftedit.dll",
-        "shdocvw.dll", "mshtml.dll", "jscript.dll",
-        "vbscript.dll", "scrrun.dll", "scrobj.dll",
-
-        // ─── Printer/Spooler Phantom DLLs ───
-        "prnntfy.dll", "spoolss.dll", "win32spl.dll",
-
-        // ─── WMI Phantom DLLs ───
-        "wbemcomn.dll", "wbemsvc.dll", "fastprox.dll",
-        "wbemprox.dll", "wmiutils.dll",
-
-        // ─── Network Phantom DLLs ───
-        "rasadhlp.dll", "fwpuclnt.dll", "nlaapi.dll",
-        "winnsi.dll", "iphlpapi.dll", "dhcpcsvc.dll",
-        "dhcpcsvc6.dll", "dnsapi.dll",
-
-        // ─── Security Phantom DLLs ───
-        "wdigest.dll", "kerberos.dll", "msv1_0.dll",
-        "negoexts.dll", "pku2u.dll", "cloudap.dll",
-        "schannel.dll", "mswsock.dll",
-
-        // ─── GPU / Display Phantom DLLs ───
-        "nvapi64.dll", "nvapi.dll", "amdxc64.dll",
-        "igdusc64.dll", "opencl.dll",
-
-        // ─── Task Scheduler Phantom DLLs ───
-        "dimsjob.dll", "wmiprop.dll", "schedcli.dll",
-
-        // ─── Windows Update Phantom DLLs ───
-        "wuaueng.dll", "wuapi.dll", "wups.dll",
-
-        // ─── Edge / Browser Phantom DLLs ───
-        "mso.dll", "riched20.dll"
-    };
+            foreach (var category in categories.EnumerateObject())
+            {
+                foreach (var dll in category.Value.EnumerateArray())
+                {
+                    string? name = dll.GetString();
+                    if (name != null) set.Add(name);
+                }
+            }
+        }
+        catch
+        {
+            // Fallback: return empty set if resource loading fails
+        }
+        return set;
+    }
 
     public StaticDiscoveryEngine(ScanProfile profile)
     {
@@ -87,7 +57,7 @@ public class StaticDiscoveryEngine
         {
             // ─── Enumerate all execution contexts ───
             ctx.Status("[yellow]Enumerating services...[/]");
-            var contexts = new List<ExecutionContext>();
+            var contexts = new List<DiscoveryContext>();
             contexts.AddRange(ServiceEnumerator.EnumerateServices());
 
             ctx.Status("[yellow]Enumerating scheduled tasks...[/]");
@@ -114,7 +84,7 @@ public class StaticDiscoveryEngine
                 {
                     AnsiConsole.MarkupLine($"[red]No execution contexts found for target: {Markup.Escape(_profile.TargetPath)}[/]");
                     AnsiConsole.MarkupLine($"[dim]Tip: Try using just the filename (e.g., 'app.exe') or a directory path[/]");
-                    _lastContexts = new List<ExecutionContext>();
+                    _lastContexts = new List<DiscoveryContext>();
                     return;
                 }
             }
@@ -174,11 +144,11 @@ public class StaticDiscoveryEngine
     }
 
     // Expose for ETW enrichment
-    private List<ExecutionContext>? _lastContexts;
-    public List<ExecutionContext> GetLastContexts() => _lastContexts ?? new();
+    private List<DiscoveryContext>? _lastContexts;
+    public List<DiscoveryContext> GetLastContexts() => _lastContexts ?? new();
 
     private List<HijackCandidate> AnalyzeDllImport(string binaryPath, string dllName,
-        List<ExecutionContext> contexts, PEAnalysisResult peResult)
+        List<DiscoveryContext> contexts, PEAnalysisResult peResult)
     {
         var candidates = new List<HijackCandidate>();
 
@@ -237,12 +207,12 @@ public class StaticDiscoveryEngine
         return candidates;
     }
 
-    private void CheckPhantomDlls(string binaryPath, List<ExecutionContext> contexts,
+    private void CheckPhantomDlls(string binaryPath, List<DiscoveryContext> contexts,
         PEAnalysisResult peResult, List<HijackCandidate> candidates)
     {
         foreach (string dll in peResult.AllImportedDlls)
         {
-            if (!PhantomDllDatabase.Contains(dll)) continue;
+            if (!PhantomDllDatabase.Value.Contains(dll)) continue;
 
             string? actualLocation = SearchOrderCalculator.FindActualDllLocation(binaryPath, dll);
             if (actualLocation != null) continue;
@@ -295,7 +265,7 @@ public class StaticDiscoveryEngine
     }
 
     // ═══ NEW: FILTER BY TARGET ═══
-    private static List<ExecutionContext> FilterByTarget(List<ExecutionContext> contexts, string target)
+    private static List<DiscoveryContext> FilterByTarget(List<DiscoveryContext> contexts, string target)
     {
         // Expand environment variables in target
         string expandedTarget = Environment.ExpandEnvironmentVariables(target);
@@ -365,7 +335,7 @@ public class StaticDiscoveryEngine
         return partialMatches;
     }
 
-    private static int GetContextPriority(ExecutionContext ctx) => ctx.TriggerType switch
+    private static int GetContextPriority(DiscoveryContext ctx) => ctx.TriggerType switch
     {
         TriggerType.Service when ctx.IsAutoStart => 10,
         TriggerType.Service => 8,

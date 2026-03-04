@@ -7,9 +7,9 @@ namespace DLLHijackHunter.Discovery;
 
 public static class COMEnumerator
 {
-    public static List<ExecutionContext> EnumerateCOMObjects()
+    public static List<DiscoveryContext> EnumerateCOMObjects()
     {
-        var results = new List<ExecutionContext>();
+        var results = new List<DiscoveryContext>();
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         try
@@ -38,7 +38,7 @@ public static class COMEnumerator
 
                     if (File.Exists(dllPath))
                     {
-                        results.Add(new ExecutionContext
+                        results.Add(new DiscoveryContext
                         {
                             BinaryPath = dllPath,
                             TriggerType = TriggerType.COM,
@@ -51,7 +51,7 @@ public static class COMEnumerator
                     else
                     {
                         // COM DLL doesn't exist — phantom COM hijack!
-                        results.Add(new ExecutionContext
+                        results.Add(new DiscoveryContext
                         {
                             BinaryPath = dllPath,
                             TriggerType = TriggerType.COM,

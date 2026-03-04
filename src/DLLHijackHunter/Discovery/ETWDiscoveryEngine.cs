@@ -14,7 +14,7 @@ namespace DLLHijackHunter.Discovery;
 public class ETWDiscoveryEngine
 {
     private readonly ScanProfile _profile;
-    private readonly ConcurrentDictionary<int, ProcessContext> _processes = new();
+    private readonly ConcurrentDictionary<int, DiscoveryContext> _processes = new();
     private readonly ConcurrentBag<HijackCandidate> _candidates = new();
     private readonly ConcurrentDictionary<string, byte> _failedLookups = new();
 
@@ -23,7 +23,7 @@ public class ETWDiscoveryEngine
         _profile = profile;
     }
 
-    public async Task<List<HijackCandidate>> DiscoverAsync()
+    public async Task<List<HijackCandidate>> DiscoverAsync(CancellationToken cancellationToken = default)
     {
         if (!(TraceEventSession.IsElevated() ?? false))
         {
@@ -78,7 +78,14 @@ public class ETWDiscoveryEngine
                 }
 
                 ctx.Status($"[yellow]Collecting ETW events for {_profile.ETWDurationSeconds}s...[/]");
-                await Task.Delay(TimeSpan.FromSeconds(_profile.ETWDurationSeconds));
+                try
+                {
+                    await Task.Delay(TimeSpan.FromSeconds(_profile.ETWDurationSeconds), cancellationToken);
+                }
+                catch (OperationCanceledException)
+                {
+                    AnsiConsole.MarkupLine("[yellow]ETW collection cancelled.[/]");
+                }
             });
 
             session.Stop();
@@ -98,7 +105,7 @@ public class ETWDiscoveryEngine
     /// Enrich ETW candidates with static context data (RunAsAccount, Trigger, etc.)
     /// </summary>
     public void EnrichWithStaticData(List<HijackCandidate> etwCandidates,
-        List<ExecutionContext> staticContexts)
+        List<DiscoveryContext> staticContexts)
     {
         var contextByPath = staticContexts
             .GroupBy(c => c.BinaryPath, StringComparer.OrdinalIgnoreCase)
@@ -112,7 +119,7 @@ public class ETWDiscoveryEngine
 
         foreach (var candidate in etwCandidates)
         {
-            ExecutionContext? ctx = null;
+            DiscoveryContext? ctx = null;
 
             // Try exact path match first
             if (!string.IsNullOrEmpty(candidate.BinaryPath))
@@ -145,10 +152,10 @@ public class ETWDiscoveryEngine
     {
         try
         {
-            var ctx = new ProcessContext
+            var ctx = new DiscoveryContext
             {
                 Pid = data.ProcessID,
-                ImagePath = data.ImageFileName ?? "",
+                BinaryPath = data.ImageFileName ?? "",
                 CommandLine = data.CommandLine ?? ""
             };
 
@@ -192,7 +199,7 @@ public class ETWDiscoveryEngine
                 {
                     _candidates.Add(new HijackCandidate
                     {
-                        BinaryPath = ctx.ImagePath,
+                        BinaryPath = ctx.BinaryPath,
                         DllName = dllName,
                         DllLegitPath = fileName,
                         Type = HijackType.SearchOrder,
@@ -229,7 +236,7 @@ public class ETWDiscoveryEngine
 
                         if (_processes.TryGetValue(data.ProcessID, out var ctx))
                         {
-                            processPath = ctx.ImagePath;
+                            processPath = ctx.BinaryPath;
                             tokenUser = ctx.TokenUser;
                             ctx.FailedDllLookups.Add(fileName);
                         }
@@ -327,7 +334,7 @@ public class ETWDiscoveryEngine
         catch { }
     }
 
-    private static int GetPriority(ExecutionContext c) => c.TriggerType switch
+    private static int GetPriority(DiscoveryContext c) => c.TriggerType switch
     {
         TriggerType.Service when c.IsAutoStart => 10,
         TriggerType.Service => 8,

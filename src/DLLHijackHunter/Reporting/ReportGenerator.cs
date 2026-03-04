@@ -12,13 +12,7 @@ public static class ReportGenerator
     public static void GenerateConsoleReport(ScanResult result)
     {
         AnsiConsole.Clear();
-        AnsiConsole.MarkupLine("[cyan1]    ____  __    __    __  ___   _            __   __  __            __           [/]");
-        AnsiConsole.MarkupLine("[cyan1]   / __ \\/ /   / /   / / / (_) (_)___ ______/ /__/ / / /_  ______  / /____  _____[/]");
-        AnsiConsole.MarkupLine("[cyan1]  / / / / /   / /   / /_/ / / / / __ `/ ___/ //_/ /_/ / / / / __ \\/ __/ _ \\/ ___/[/]");
-        AnsiConsole.MarkupLine("[cyan1] / /_/ / /___/ /___/ __  / / / / /_/ / /__/ ,< / __  / /_/ / / / / /_/  __/ /    [/]");
-        AnsiConsole.MarkupLine("[cyan1]/_____/_____/_____/_/ /_/_/_/ /\\__,_/\\___/_/|_/_/ /_/\\__,_/_/ /_/\\__/\\___/_/     [/]");
-        AnsiConsole.MarkupLine("[cyan1]                         /___/                                                    [/]");
-        AnsiConsole.MarkupLine("[bold grey]                              By GhostVector Academy[/]");
+        BannerConstants.PrintBanner();
         AnsiConsole.WriteLine();
 
         // Summary table

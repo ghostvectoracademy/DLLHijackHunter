@@ -1,0 +1,131 @@
+{
+    "categories": {
+        "Classic Windows": [
+            "wlbsctrl.dll",
+            "wlanhlp.dll",
+            "wlanapi.dll",
+            "dsparse.dll",
+            "ualapi.dll",
+            "tsmsisrv.dll",
+            "taborjt.dll",
+            "srvcli.dll",
+            "sxs.dll",
+            "ncobjapi.dll",
+            "msdmo.dll",
+            "msfte.dll",
+            "windowscodecs.dll",
+            "propsys.dll",
+            "ntmarta.dll",
+            "edgegdi.dll",
+            "phoneinfo.dll",
+            "IKEEXT.dll"
+        ],
+        "Windows 10/11": [
+            "profapi.dll",
+            "fltLib.dll",
+            "wer.dll",
+            "dxgi.dll",
+            "d3d11.dll",
+            "d3d12.dll",
+            "vulkan-1.dll",
+            "amsi.dll",
+            "clbcatq.dll",
+            "msasn1.dll",
+            "dwmapi.dll",
+            "uxtheme.dll",
+            "textinputframework.dll",
+            "coreuicomponents.dll",
+            "coremessaging.dll",
+            "WptsExtensions.dll",
+            "ondemandconnroutehelper.dll"
+        ],
+        ".NET / CLR": [
+            "mscoree.dll",
+            "clr.dll",
+            "mscoreei.dll",
+            "diasymreader.dll",
+            "dbghelp.dll"
+        ],
+        "Common Application": [
+            "version.dll",
+            "userenv.dll",
+            "winhttp.dll",
+            "httpapi.dll",
+            "crypt32.dll",
+            "cryptsp.dll",
+            "cryptbase.dll",
+            "gpapi.dll",
+            "dpapi.dll",
+            "logoncli.dll",
+            "samcli.dll",
+            "netutils.dll",
+            "wkscli.dll",
+            "BrowserSvc.dll",
+            "FwRemoteSvr.dll"
+        ],
+        "Service-specific": [
+            "iertutil.dll",
+            "cabinet.dll",
+            "msftedit.dll",
+            "shdocvw.dll",
+            "mshtml.dll",
+            "jscript.dll",
+            "vbscript.dll",
+            "scrrun.dll",
+            "scrobj.dll"
+        ],
+        "Printer / Spooler": [
+            "prnntfy.dll",
+            "spoolss.dll",
+            "win32spl.dll"
+        ],
+        "WMI": [
+            "wbemcomn.dll",
+            "wbemsvc.dll",
+            "fastprox.dll",
+            "wbemprox.dll",
+            "wmiutils.dll"
+        ],
+        "Network": [
+            "rasadhlp.dll",
+            "fwpuclnt.dll",
+            "nlaapi.dll",
+            "winnsi.dll",
+            "iphlpapi.dll",
+            "dhcpcsvc.dll",
+            "dhcpcsvc6.dll",
+            "dnsapi.dll"
+        ],
+        "Security": [
+            "wdigest.dll",
+            "kerberos.dll",
+            "msv1_0.dll",
+            "negoexts.dll",
+            "pku2u.dll",
+            "cloudap.dll",
+            "schannel.dll",
+            "mswsock.dll"
+        ],
+        "GPU / Display": [
+            "nvapi64.dll",
+            "nvapi.dll",
+            "amdxc64.dll",
+            "igdusc64.dll",
+            "opencl.dll"
+        ],
+        "Task Scheduler": [
+            "dimsjob.dll",
+            "wmiprop.dll",
+            "schedcli.dll"
+        ],
+        "Windows Update": [
+            "wuaueng.dll",
+            "wuapi.dll",
+            "wups.dll"
+        ],
+        "Edge / Browser": [
+            "mso.dll",
+            "riched20.dll"
+        ]
+    }
+}

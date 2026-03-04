@@ -20,8 +20,6 @@ public class ScanProfile
     public string OutputFormat { get; set; } = "json";
     public string? OutputPath { get; set; }
     public bool Verbose { get; set; } = false;
-    
-    // ← ADD THIS LINE
     public string? TargetPath { get; set; }
 
     public static ScanProfile Aggressive => new()

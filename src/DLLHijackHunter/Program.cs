@@ -76,10 +76,13 @@ public class Program
             aliases: new[] { "--verbose", "-v" },
             description: "Verbose output");
 
-        // ═══ ADD THIS NEW OPTION ═══
         var targetOption = new Option<string?>(
             aliases: new[] { "--target", "-t" },
             description: "Target specific binary, directory, or filename (e.g., 'notepad.exe', 'C:\\MyApp', 'C:\\MyApp\\app.exe')");
+
+        var logFileOption = new Option<string?>(
+            aliases: new[] { "--log-file" },
+            description: "Write scan log to file for diagnostic purposes");
 
         rootCommand.AddOption(profileOption);
         rootCommand.AddOption(outputOption);
@@ -89,7 +92,8 @@ public class Program
         rootCommand.AddOption(noEtwOption);
         rootCommand.AddOption(confirmedOnlyOption);
         rootCommand.AddOption(verboseOption);
-        rootCommand.AddOption(targetOption);  // ← ADD THIS
+        rootCommand.AddOption(targetOption);
+        rootCommand.AddOption(logFileOption);
 
         rootCommand.SetHandler(async (ctx) =>
         {
@@ -102,9 +106,18 @@ public class Program
             var confirmedOnly = ctx.ParseResult.GetValueForOption(confirmedOnlyOption);
             var verbose = ctx.ParseResult.GetValueForOption(verboseOption);
             var target = ctx.ParseResult.GetValueForOption(targetOption);
+            var logFile = ctx.ParseResult.GetValueForOption(logFileOption);
+
+            using var cts = new CancellationTokenSource();
+            Console.CancelKeyPress += (_, e) =>
+            {
+                e.Cancel = true;
+                cts.Cancel();
+                AnsiConsole.MarkupLine("\n[yellow]Cancellation requested... cleaning up.[/]");
+            };
 
             await RunScan(profile, output, format, minConf, noCanary, noEtw,
-                confirmedOnly, verbose, target);
+                confirmedOnly, verbose, target, logFile, cts.Token);
         });
 
         return await rootCommand.InvokeAsync(args);
@@ -112,20 +125,18 @@ public class Program
 
     private static async Task RunScan(string profileName, string? outputPath, string format,
         double minConfidence, bool noCanary, bool noEtw, bool confirmedOnly, bool verbose,
-        string? target)  // ← ADD parameter
+        string? target, string? logFile, CancellationToken cancellationToken)
     {
         var stopwatch = Stopwatch.StartNew();
 
+        // ─── Initialize logger ───
+        ScanLogger.Initialize(logFile, verbose);
+
+        try
+        {
+
         // ─── Banner ───
-        AnsiConsole.MarkupLine("[cyan1]    ____  __    __    __  ___   _            __   __  __            __           [/]");
-        AnsiConsole.MarkupLine("[cyan1]   / __ \\/ /   / /   / / / (_) (_)___ ______/ /__/ / / /_  ______  / /____  _____[/]");
-        AnsiConsole.MarkupLine("[cyan1]  / / / / /   / /   / /_/ / / / / __ `/ ___/ //_/ /_/ / / / / __ \\/ __/ _ \\/ ___/[/]");
-        AnsiConsole.MarkupLine("[cyan1] / /_/ / /___/ /___/ __  / / / / /_/ / /__/ ,< / __  / /_/ / / / / /_/  __/ /    [/]");
-        AnsiConsole.MarkupLine("[cyan1]/_____/_____/_____/_/ /_/_/_/ /\\__,_/\\___/_/|_/_/ /_/\\__,_/_/ /_/\\__/\\___/_/     [/]");
-        AnsiConsole.MarkupLine("[cyan1]                         /___/                                                    [/]");
-        AnsiConsole.MarkupLine("[bold grey]                              By GhostVector Academy[/]");
-        AnsiConsole.WriteLine();
-        AnsiConsole.MarkupLine("[dim]Automated DLL Hijacking Detection — Zero False Positives[/]");
+        BannerConstants.PrintBanner();
         AnsiConsole.MarkupLine($"[dim]v1.0.0 | {DateTime.UtcNow:yyyy-MM-dd HH:mm:ss} UTC[/]\n");
 
         // ─── Elevation check ───
@@ -157,7 +168,6 @@ public class Program
         if (outputPath != null) profile.OutputPath = outputPath;
         profile.OutputFormat = format;
 
-        // ═══ SET TARGET IN PROFILE ═══
         if (!string.IsNullOrEmpty(target))
         {
             profile.TargetPath = target;
@@ -170,7 +180,6 @@ public class Program
         AnsiConsole.MarkupLine($"[bold]Min Confidence:[/] {profile.MinConfidence}%");
         AnsiConsole.MarkupLine($"[bold]Elevated:[/] {(isElevated ? "[green]Yes[/]" : "[yellow]No[/]")}");
         
-        // ═══ SHOW TARGET IF SET ═══
         if (!string.IsNullOrEmpty(profile.TargetPath))
         {
             AnsiConsole.MarkupLine($"[bold]Target:[/] {Markup.Escape(profile.TargetPath)}");
@@ -191,7 +200,7 @@ public class Program
         if (profile.RunETW && isElevated)
         {
             var etwEngine = new ETWDiscoveryEngine(profile);
-            var etwCandidates = await etwEngine.DiscoverAsync();
+            var etwCandidates = await etwEngine.DiscoverAsync(cancellationToken);
 
             // Enrich ETW candidates with static context data
             var staticContexts = staticEngine.GetLastContexts();
@@ -283,7 +292,7 @@ public class Program
             AnsiConsole.MarkupLine("\n[bold cyan]═══ Phase 3: Canary Confirmation ═══[/]");
 
             var canaryEngine = new CanaryEngine(profile);
-            candidates = await canaryEngine.ConfirmAsync(candidates);
+            candidates = await canaryEngine.ConfirmAsync(candidates, cancellationToken);
         }
         else if (profile.RunCanary && !isElevated)
         {
@@ -343,6 +352,11 @@ public class Program
             $"[orange1]{scanResult.High.Count} high[/] | " +
             $"[yellow]{scanResult.Medium.Count} medium[/] | " +
             $"[grey]{scanResult.Low.Count} low[/])");
+        }
+        finally
+        {
+            ScanLogger.Dispose();
+        }
     }
 
     private static async Task GenerateOutput(ScanResult scanResult, string format, string? outputPath)

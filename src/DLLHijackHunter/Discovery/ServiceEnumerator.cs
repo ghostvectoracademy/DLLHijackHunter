@@ -7,9 +7,9 @@ namespace DLLHijackHunter.Discovery;
 
 public static class ServiceEnumerator
 {
-    public static List<ExecutionContext> EnumerateServices()
+    public static List<DiscoveryContext> EnumerateServices()
     {
-        var results = new List<ExecutionContext>();
+        var results = new List<DiscoveryContext>();
 
         try
         {
@@ -50,7 +50,7 @@ public static class ServiceEnumerator
                         StringComparison.OrdinalIgnoreCase);
 
                     // Add the main binary execution context
-                    results.Add(new ExecutionContext
+                    results.Add(new DiscoveryContext
                     {
                         BinaryPath = binaryPath,
                         TriggerType = TriggerType.Service,
@@ -68,7 +68,7 @@ public static class ServiceEnumerator
                         string? serviceDll = SvchostResolver.GetServiceDll(serviceName);
                         if (!string.IsNullOrEmpty(serviceDll) && File.Exists(serviceDll))
                         {
-                            results.Add(new ExecutionContext
+                            results.Add(new DiscoveryContext
                             {
                                 BinaryPath = serviceDll,
                                 TriggerType = TriggerType.Service,
@@ -133,17 +133,4 @@ public static class ServiceEnumerator
             _ => account
         };
     }
-}
-
-public class ExecutionContext
-{
-    public string BinaryPath { get; set; } = "";
-    public TriggerType TriggerType { get; set; }
-    public string TriggerIdentifier { get; set; } = "";
-    public string DisplayName { get; set; } = "";
-    public string RunAsAccount { get; set; } = "";
-    public string StartType { get; set; } = "";
-    public bool IsAutoStart { get; set; }
-    public bool IsSvchostService { get; set; }
-    public TimeSpan? RepeatInterval { get; set; }
 }
