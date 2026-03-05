@@ -2,41 +2,29 @@
   <img src="https://img.shields.io/badge/Platform-Windows-blue?style=for-the-badge&logo=windows" />
   <img src="https://img.shields.io/badge/.NET-8.0-purple?style=for-the-badge&logo=dotnet" />
   <img src="https://img.shields.io/badge/License-MIT-green?style=for-the-badge" />
-  <img src="https://img.shields.io/badge/LOC-4900+-orange?style=for-the-badge" />
+  <img src="https://img.shields.io/badge/Version-1.2.0-orange?style=for-the-badge" />
 </p>
 
-<h1 align="center">🔍 DLLHijackHunter</h1>
+<h1 align="center">DLLHijackHunter</h1>
 <h4 align="center">By GhostVector Academy</h4>
 
 <p align="center">
-  <strong>Automated DLL Hijacking Detection with Zero False Positives</strong><br/>
+  <strong>Automated DLL Hijacking Discovery, Validation, and Confirmation</strong><br/>
   <em>The only tool that proves hijacks actually work before reporting them.</em>
 </p>
 
-<p align="center">
-  <img src="https://img.shields.io/badge/Vulns_Found-50+-red?style=for-the-badge" />
-</p>
-
 ---
 
-## 🏆 Real-World Results
+## 🔍 Overview
 
-> **50+ DLL hijacking vulnerabilities discovered across enterprise security software** using DLLHijackHunter in a single scan — including services running as `NT AUTHORITY\SYSTEM` with auto-start persistence.
+**DLLHijackHunter** is an automated Windows DLL hijacking detection tool that goes beyond static analysis. It discovers, validates, and confirms DLL hijacking opportunities using a multi-phase pipeline:
 
-53 HIGH findings achieve **privilege escalation to SYSTEM** via auto-start services that **survive reboot** — the highest-impact hijack scenario possible.
+1. **Discovery** — Enumerates binaries across services, scheduled tasks, startup items, COM objects, and AutoElevate UAC bypass vectors
+2. **Filtration** — Eliminates false positives through 8 intelligent gates (hard gates + confidence-adjusting soft gates)
+3. **Canary Confirmation** — Deploys a harmless canary DLL and triggers the binary to prove the hijack works
+4. **Scoring & Reporting** — Ranks findings by exploitability with a tiered confidence system
 
----
-
-## 🎯 What is DLLHijackHunter?
-
-**DLLHijackHunter** is an automated Windows DLL hijacking detection tool that goes beyond static analysis. It discovers, validates, and confirms DLL hijacking opportunities on a target system using a multi-phase pipeline:
-
-1. **Discovery** → Finds every binary that loads DLLs from writable locations
-2. **Filtration** → Eliminates false positives through 8 intelligent filters
-3. **Canary Confirmation** → Drops a harmless canary DLL and triggers the binary to *prove* the hijack works
-4. **Scoring & Reporting** → Ranks findings by exploitability with a tiered confidence system
-
-> **Why another tool?** Every existing DLL hijacking tool stops at "this DLL might be hijackable." DLLHijackHunter actually proves it, reports the achieved privilege level, and tells you if it survives reboot.
+> Every existing DLL hijacking tool stops at "this DLL might be hijackable." DLLHijackHunter actually proves it, reports the achieved privilege level, and identifies whether it survives reboot.
 
 ---
 
@@ -44,26 +32,27 @@
 
 ```mermaid
 flowchart TB
-    subgraph Phase1["🔎 Phase 1: Discovery"]
+    subgraph Phase1["Phase 1: Discovery"]
         SE["Static Engine<br/>Services, Tasks, Startup,<br/>COM, Run Keys"]
+        AE["AutoElevate Engine<br/>Manifest + COM UAC Bypass"]
         PE["PE Analyzer<br/>Import Tables, Delay Loads,<br/>Manifests, Exports"]
         ETW["ETW Engine<br/>Real-time DLL Load<br/>Monitoring"]
         SO["Search Order<br/>Calculator"]
     end
 
-    subgraph Phase2["🔬 Phase 2: Filter Pipeline"]
+    subgraph Phase2["Phase 2: Filter Pipeline"]
         direction LR
         HG["Hard Gates<br/>(Binary Kill)"]
         SG["Soft Gates<br/>(Confidence Adj.)"]
     end
 
-    subgraph Phase3["🐦 Phase 3: Canary"]
+    subgraph Phase3["Phase 3: Canary"]
         CB["Canary DLL Builder"]
         TE["Trigger Executor"]
         VF["Verification"]
     end
 
-    subgraph Phase4["📊 Phase 4: Output"]
+    subgraph Phase4["Phase 4: Output"]
         SC["Tiered Scorer"]
         RC["Console Report"]
         RJ["JSON Report"]
@@ -71,6 +60,7 @@ flowchart TB
     end
 
     SE --> PE --> SO
+    AE --> PE
     ETW --> SO
     SO --> Phase2
     HG --> SG
@@ -83,58 +73,53 @@ flowchart TB
     style Phase3 fill:#1a1a2e,stroke:#f85149,color:#c9d1d9
     style Phase4 fill:#1a1a2e,stroke:#3fb950,color:#c9d1d9
 ```
+
 ---
 
-## 🔑 Key Features
+## 🎯 Key Features
 
-### 10 Hijack Types Detected
-
-```mermaid
-pie title Hijack Types Coverage
-    "Phantom DLL" : 20
-    "Search Order" : 18
-    "Side-Loading" : 14
-    "ENV PATH" : 12
-    ".local Redirect" : 10
-    "KnownDLL Bypass" : 8
-    "CWD Hijack" : 6
-    "AppInit DLLs" : 4
-    "IFEO" : 4
-    "AppCert DLLs" : 4
-```
+### Hijack Type Coverage
 
 | Type | Description | Stealth |
 |---|---|---|
-| **Phantom** | DLL doesn't exist anywhere — cleanest hijack | ⭐⭐⭐⭐⭐ |
-| **Search Order** | Place DLL earlier in the Windows search order | ⭐⭐⭐⭐ |
-| **Side-Loading** | Abuse legitimate app loading DLLs from its dir | ⭐⭐⭐⭐ |
-| **.local Redirect** | Hijack via `.local` directory redirection | ⭐⭐⭐⭐⭐ |
-| **ENV PATH** | Writable directory in system PATH | ⭐⭐ |
-| **KnownDLL Bypass** | Bypass KnownDLLs via .local or WoW64 | ⭐⭐⭐ |
-| **CWD** | Current Working Directory hijack | ⭐⭐ |
-| **AppInit DLLs** | AppInit_DLLs registry abuse | ⭐⭐ |
-| **IFEO** | Image File Execution Options debugger | ⭐⭐⭐ |
-| **AppCert DLLs** | AppCertDLLs registry hijack | ⭐⭐ |
+| **Phantom** | DLL doesn't exist anywhere on disk — cleanest hijack | High |
+| **Search Order** | Place DLL earlier in the Windows search order | High |
+| **Side-Loading** | Abuse legitimate app loading DLLs from its directory | High |
+| **.local Redirect** | Hijack via `.local` directory redirection | High |
+| **KnownDLL Bypass** | Bypass KnownDLLs via .local or WoW64 | Medium |
+| **ENV PATH** | Writable directory in system PATH | Low |
+| **CWD** | Current Working Directory hijack | Low |
+| **AppInit DLLs** | AppInit_DLLs registry abuse | Low |
+| **IFEO** | Image File Execution Options debugger | Medium |
+| **AppCert DLLs** | AppCertDLLs registry hijack | Low |
 
-### 8-Gate Filter Pipeline
+### UAC Bypass Discovery
 
-The filter pipeline eliminates false positives through two stages:
+DLLHijackHunter includes dedicated UAC bypass detection:
+
+- **Manifest AutoElevate** — Scans `System32` and `SysWOW64` for EXEs with `<autoElevate>true</autoElevate>` in their embedded manifests
+- **COM AutoElevation** — Scans `HKLM\SOFTWARE\Classes\CLSID` for COM objects with `Elevation\Enabled=1` (covers techniques like Fodhelper, CMSTPLUA, and similar)
+- **Side-Load Simulation** — For AutoElevate binaries that don't call `SetDllDirectory` or `SetDefaultDllDirectories`, simulates the "copy EXE to writable folder + drop DLL" attack vector
+
+### Filter Pipeline
+
+The pipeline eliminates false positives through two stages:
 
 **Hard Gates** (binary elimination):
-- **API Set Schema Filter** — Removes virtual API set DLLs (`api-ms-*`, `ext-ms-*`)
-- **Known DLLs Filter** — Removes Windows-protected KnownDLLs from registry
-- **Writability Filter** — Only keeps candidates where the hijack path is actually writable
+- **API Set Schema** — Removes virtual API set DLLs (`api-ms-*`, `ext-ms-*`)
+- **Known DLLs** — Removes Windows-protected KnownDLLs from registry
+- **Writability** — ACL-based check; only keeps candidates where the hijack path is writable
 
-**Soft Gates** (confidence adjustment -10% to -30% each):
-- **WinSxS Manifest Filter** — Penalizes if DLL is covered by Side-by-Side manifest
-- **Privilege Delta Filter** — Evaluates if hijack provides useful privilege escalation
-- **LoadLibraryEx Flags Filter** — Checks for `LOAD_LIBRARY_SEARCH_*` mitigations
-- **Signature Verification Filter** — Checks if the binary validates DLL signatures
-- **Error Handled Load Filter** — Detects if failed loads are gracefully handled
+**Soft Gates** (confidence adjustment, -10% to -30% each):
+- **WinSxS Manifest** — Penalizes if DLL is covered by Side-by-Side manifest
+- **Privilege Delta** — Evaluates if hijack provides useful privilege escalation
+- **LoadLibraryEx Flags** — Checks for `LOAD_LIBRARY_SEARCH_*` mitigations
+- **Signature Verification** — Checks if the binary validates DLL signatures
+- **Error Handled Load** — Detects if failed DLL loads are gracefully handled
 
-### Canary Confirmation System
+### Canary Confirmation
 
-Instead of guessing, DLLHijackHunter **proves** hijacks work:
+Instead of guessing, DLLHijackHunter proves hijacks work:
 
 ```mermaid
 sequenceDiagram
@@ -149,58 +134,40 @@ sequenceDiagram
     H->>H: Place DLL at hijack path
     H->>T: Trigger binary execution
     T->>V: Start service / Run task / COM activate
-    V->>V: Loads canary DLL!
+    V->>V: Loads canary DLL
     V-->>H: Named pipe callback:<br/>PID, privilege, integrity level
-    H->>H: Record: CONFIRMED ✓
+    H->>H: Record: CONFIRMED
     H->>H: Cleanup canary DLL
 ```
 
 The canary DLL:
-- ✅ Proxy-exports all original functions (app keeps working)
-- ✅ Reports back via named pipe: achieved privilege, integrity level, SeDebug
-- ✅ Self-cleans after confirmation
-- ✅ Never runs malicious code — it's a detection tool
+- Proxy-exports all original functions (application keeps working)
+- Reports back via named pipe: achieved privilege, integrity level, SeDebug status
+- Self-cleans after confirmation
+- Contains no malicious code — purely a detection mechanism
 
 ---
 
-## ⚡ Comparison vs Other Tools
+## ⚡ Comparison
 
 | Feature | **DLLHijackHunter** | Robber | DLLSpy | WinPEAS | Procmon |
 |---|:---:|:---:|:---:|:---:|:---:|
-| **Automated discovery** | ✅ | ✅ | ✅ | ✅ | ❌ Manual |
-| **Phantom DLL detection** | ✅ | ❌ | ✅ | ❌ | ✅ |
-| **Search order analysis** | ✅ | ❌ | ❌ | ❌ | ❌ |
-| **Writable path verification** | ✅ ACL-based | Partial | ❌ | Basic | ❌ |
-| **ETW real-time monitoring** | ✅ | ❌ | ❌ | ❌ | ✅ |
-| **Canary confirmation** | ✅ Proven | ❌ | ❌ | ❌ | ❌ |
-| **Privilege escalation check** | ✅ | ❌ | ❌ | ❌ | ❌ |
-| **False positive elimination** | 8 filters | None | Basic | None | None |
-| **Reboot persistence check** | ✅ | ❌ | ❌ | ❌ | ❌ |
-| **Proxy DLL generation** | ✅ Auto | ❌ | ❌ | ❌ | ❌ |
-| **Confidence scoring** | ✅ 5-tier | ❌ | ❌ | ❌ | ❌ |
-| **Service/Task/COM triggers** | ✅ Auto | ❌ | ❌ | ❌ | ❌ |
-| **HTML/JSON reporting** | ✅ | ❌ | ❌ | TXT | ❌ |
-| **Target-specific scanning** | ✅ | ❌ | ❌ | ❌ | ✅ |
-| **Self-contained binary** | ✅ | ❌ | ❌ | ✅ | ❌ |
-
-```mermaid
-xychart-beta
-    title "Feature Coverage Comparison"
-    x-axis ["DLLHijackHunter", "Robber", "DLLSpy", "WinPEAS", "Procmon"]
-    y-axis "Features Covered" 0 --> 14
-    bar [14, 2, 3, 3, 3]
-```
-
-### Why DLLHijackHunter is Better
-
-| Problem with Existing Tools | How DLLHijackHunter Solves It |
-|---|---|
-| **Massive false positives** — report every missing DLL | 8-gate filter pipeline + canary proof = zero false positives |
-| **No verification** — "maybe hijackable" isn't actionable | Canary DLL actually loads and reports back achieved privilege |
-| **Manual work** — must manually check each finding | Fully automated from discovery through confirmation |
-| **Missing context** — no trigger, no privilege info | Reports trigger type, run-as account, reboot persistence |
-| **Static only** — can't catch runtime-loaded DLLs | ETW engine captures real-time `LoadLibrary` calls |
-| **No prioritization** — flat list of hundreds of results | Tiered scoring: Confirmed > High > Medium > Low |
+| Automated discovery | ✅ | ✅ | ✅ | ✅ | ❌ |
+| Phantom DLL detection | ✅ | ❌ | ✅ | ❌ | ✅ |
+| Search order analysis | ✅ | ❌ | ❌ | ❌ | ❌ |
+| ACL-based writability check | ✅ | Partial | ❌ | Basic | ❌ |
+| ETW real-time monitoring | ✅ | ❌ | ❌ | ❌ | ✅ |
+| Canary confirmation | ✅ | ❌ | ❌ | ❌ | ❌ |
+| Privilege escalation check | ✅ | ❌ | ❌ | ❌ | ❌ |
+| UAC bypass discovery | ✅ | ❌ | ❌ | ❌ | ❌ |
+| False positive elimination | 8 filters | None | Basic | None | None |
+| Reboot persistence check | ✅ | ❌ | ❌ | ❌ | ❌ |
+| Proxy DLL generation | ✅ | ❌ | ❌ | ❌ | ❌ |
+| Confidence scoring | 5-tier | ❌ | ❌ | ❌ | ❌ |
+| Auto trigger (svc/task/COM) | ✅ | ❌ | ❌ | ❌ | ❌ |
+| HTML/JSON reporting | ✅ | ❌ | ❌ | TXT | ❌ |
+| Target-specific scanning | ✅ | ❌ | ❌ | ❌ | ✅ |
+| Self-contained binary | ✅ | ❌ | ❌ | ✅ | ❌ |
 
 ---
 
@@ -237,6 +204,9 @@ dotnet publish src/DLLHijackHunter/DLLHijackHunter.csproj `
 # Safe scan (no file drops, no triggers — safe for production)
 .\DLLHijackHunter.exe --profile safe
 
+# UAC bypass focused scan
+.\DLLHijackHunter.exe --profile uac-bypass
+
 # Target a specific binary
 .\DLLHijackHunter.exe --target "C:\Program Files\MyApp\app.exe"
 
@@ -254,7 +224,7 @@ DLLHijackHunter — Automated DLL Hijacking Detection
 
 Options:
   -p, --profile <profile>        Scan profile [default: aggressive]
-                                   aggressive | strict | safe | redteam
+                                   aggressive | strict | safe | redteam | uac-bypass
   -o, --output <path>            Output file path (auto-detects format)
   -f, --format <format>          Output format [default: console]
                                    console | json | html
@@ -268,27 +238,17 @@ Options:
 
 ### Scan Profiles
 
-| Profile | Use Case | Canary | ETW | Min Confidence | Triggers |
-|---|---|:---:|:---:|:---:|---|
-| **aggressive** | Full audit, lab environments | ✅ | ✅ | 15% | Services, Tasks, COM |
-| **strict** | High-confidence findings only | ✅ | ✅ | 80% | Services, Tasks |
-| **safe** | Production systems, read-only | ❌ | ❌ | 50% | None |
-| **redteam** | Confirmed exploitable only | ✅ | ✅ | 50% | Services, Tasks, COM |
-
-### Example Output
-
-```
-                           Findings by Tier
-CONFIRMED  0
-     HIGH  ██████████████████████████████████████████████ 53
-   MEDIUM  ████ 7
-      LOW  0
-
-```
+| Profile | Use Case | Canary | ETW | UAC Bypass | Min Confidence | Triggers |
+|---|---|:---:|:---:|:---:|:---:|---|
+| **aggressive** | Full audit, lab environments | ✅ | ✅ | ✅ | 15% | Services, Tasks, COM |
+| **strict** | High-confidence findings only | ✅ | ✅ | ❌ | 80% | Services, Tasks |
+| **safe** | Production systems, read-only | ❌ | ❌ | ❌ | 50% | None |
+| **redteam** | Confirmed exploitable only | ✅ | ✅ | ❌ | 50% | Services, Tasks, COM |
+| **uac-bypass** | UAC bypass vectors only | ❌ | ❌ | ✅ | 20% | AutoElevate only |
 
 ---
 
-## 📋 Scoring System
+## 📊 Scoring
 
 Each finding receives three scores:
 
@@ -297,10 +257,10 @@ flowchart LR
     C["Confidence<br/>0-100%"] --> F["Final Score"]
     I["Impact<br/>0-10"] --> F
     F --> T["Tier Assignment"]
-    T --> T1["🔴 CONFIRMED<br/>Canary proven"]
-    T --> T2["🟠 HIGH<br/>≥80% confidence"]
-    T --> T3["🟡 MEDIUM<br/>50-79%"]
-    T --> T4["⚪ LOW<br/>20-49%"]
+    T --> T1["CONFIRMED<br/>Canary proven"]
+    T --> T2["HIGH<br/>≥80% confidence"]
+    T --> T3["MEDIUM<br/>50-79%"]
+    T --> T4["LOW<br/>20-49%"]
 
     style T1 fill:#f85149,color:white
     style T2 fill:#d29922,color:white
@@ -308,25 +268,34 @@ flowchart LR
     style T4 fill:#8b949e,color:white
 ```
 
-**Impact Score** (0-10) weights:
-- **Privilege gained** (0-4): SYSTEM=4, Admin/LocalService=3, User=1
-- **Trigger reliability** (0-3): Auto-start service=3, Frequent task=2.5, Startup=2
-- **Stealth** (0-2): Phantom=2, .local=1.8, Search order=1.5
-- **Persistence bonus** (+1): Survives reboot
+**Impact Score** (0-10) is composed of:
 
-**Final Score** = `(Confidence × 0.4 + Impact × 0.6) × 10`
+| Component | Range | Details |
+|---|---|---|
+| Privilege gained | 0–4 | SYSTEM = 4, Admin/LocalService = 3, User = 1 |
+| Trigger reliability | 0–3 | Auto-start service = 3, UAC bypass = 2.8, Frequent task = 2.5, Startup = 2 |
+| Stealth | 0–2 | Phantom = 2, .local = 1.8, Search order = 1.5, Side-load = 1.5 |
+| Persistence bonus | +1 | Survives reboot |
+
+**Final Score** = `(Confidence × 0.4 + Impact × 0.6) × 10`, clamped to 0–10.
 
 ---
 
-## 🔒 Safety
+## 🛡️ Safety
 
-DLLHijackHunter is a **detection** tool, not an exploitation framework:
+DLLHijackHunter is a detection tool, not an exploitation framework:
 
-- 🛡️ Canary DLLs contain **no malicious payload** — they only report metadata via named pipe
-- 🧹 All canary files are **automatically cleaned up** after testing
-- 🔄 Proxy exports keep the target application **fully functional**
-- 📝 Use `--profile safe` for production systems (no file writes, no triggers)
-- ⚠️ Always get proper authorization before scanning systems you don't own
+- Canary DLLs contain no malicious payload — they only report metadata via named pipe
+- All canary files are automatically cleaned up after testing
+- Proxy exports keep the target application fully functional
+- Use `--profile safe` for production systems (no file writes, no triggers)
+- Always obtain proper authorization before scanning systems you do not own
+
+---
+
+## 📄 License
+
+This project is licensed under the [MIT License](LICENSE).
 
 ---
 

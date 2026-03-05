@@ -220,4 +220,70 @@ public class TieredScorerTests
             (80.0 / 100.0 * 0.4 + 9.5 / 10.0 * 0.6) * 10.0, 1);
         Assert.Equal(expectedFinal, candidate.FinalScore);
     }
+
+    [Fact]
+    public void Score_UACBypass_AddsSilentUACBypassUseCase()
+    {
+        var candidate = CreateCandidate(trigger: TriggerType.UACBypass);
+
+        _scorer.Score(candidate);
+
+        Assert.Contains(candidate.UseCases, u => u.Contains("Silent UAC Bypass"));
+    }
+
+    [Fact]
+    public void Score_UACBypass_HasCorrectImpactScore()
+    {
+        var candidate = CreateCandidate(
+            runAs: "NT AUTHORITY\\SYSTEM",
+            trigger: TriggerType.UACBypass,
+            type: HijackType.Phantom,
+            survivesReboot: false);
+
+        _scorer.Score(candidate);
+
+        // SYSTEM (4) + UACBypass trigger (2.8) + Phantom (2.0) + no reboot (0) = 8.8
+        Assert.Equal(8.8, candidate.ImpactScore);
+    }
+
+    [Fact]
+    public void Score_UACBypass_GetsConfidenceBonus()
+    {
+        var candidate = CreateCandidate(
+            canaryResult: CanaryResult.NotTested,
+            confidence: 85,
+            trigger: TriggerType.UACBypass);
+
+        _scorer.Score(candidate);
+
+        // 85 + 10 (UAC bypass bonus) = 95
+        Assert.Equal(95.0, candidate.Confidence);
+    }
+
+    [Fact]
+    public void Score_UACBypassSideLoad_AddsCopyAndSideLoadUseCase()
+    {
+        var candidate = CreateCandidate(trigger: TriggerType.UACBypass, type: HijackType.SideLoad);
+        candidate.IsSimulatedCopyAttack = true;
+
+        _scorer.Score(candidate);
+
+        Assert.Contains(candidate.UseCases, u => u.Contains("Copy & Side-Load"));
+        Assert.Contains(candidate.UseCases, u => u.Contains("Silent UAC Bypass"));
+    }
+
+    [Fact]
+    public void Score_UACBypassSideLoad_HasCorrectImpactScore()
+    {
+        var candidate = CreateCandidate(
+            runAs: "NT AUTHORITY\\SYSTEM",
+            trigger: TriggerType.UACBypass,
+            type: HijackType.SideLoad,
+            survivesReboot: false);
+
+        _scorer.Score(candidate);
+
+        // SYSTEM (4) + UACBypass trigger (2.8) + SideLoad (1.5) + no reboot (0) = 8.3
+        Assert.Equal(8.3, candidate.ImpactScore);
+    }
 }

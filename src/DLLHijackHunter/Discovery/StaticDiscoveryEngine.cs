@@ -74,6 +74,14 @@ public class StaticDiscoveryEngine
 
             AnsiConsole.MarkupLine($"  [green]Found {contexts.Count} execution contexts[/]");
 
+            if (_profile.TriggerAutoElevate)
+            {
+                ctx.Status("[yellow]Hunting for AutoElevate UAC Bypass binaries...[/]");
+                var autoElevateContexts = AutoElevateEnumerator.EnumerateAutoElevateBinaries();
+                contexts.AddRange(autoElevateContexts);
+                AnsiConsole.MarkupLine($"  [green]Found {autoElevateContexts.Count} AutoElevate binaries[/]");
+            }
+
             // ═══ FILTER BY TARGET ═══
             if (!string.IsNullOrEmpty(_profile.TargetPath))
             {
@@ -201,6 +209,36 @@ public class StaticDiscoveryEngine
                 SurvivesReboot = bestCtx.IsAutoStart,
                 DiscoverySource = "static",
                 Notes = { "Requires creating .local directory and placing DLL inside" }
+            });
+        }
+
+        // ═══ AutoElevate Side-Loading Simulation ═══
+        // If this is a UACBypass binary and it doesn't protect against CWD loads,
+        // an attacker can copy the EXE to a writable folder (e.g. %TEMP%), place
+        // a malicious DLL next to it, and execute for a silent UAC bypass.
+        var uacCtx = contexts.FirstOrDefault(c => c.TriggerType == TriggerType.UACBypass);
+        if (uacCtx != null && !peResult.CallsSetDllDirectory && !peResult.CallsSetDefaultDllDirectories)
+        {
+            string tempTarget = Path.Combine(Path.GetTempPath(), dllName);
+            candidates.Add(new HijackCandidate
+            {
+                BinaryPath = binaryPath,
+                DllName = dllName,
+                DllLegitPath = SearchOrderCalculator.FindActualDllLocation(binaryPath, dllName),
+                Type = HijackType.SideLoad,
+                HijackWritablePath = tempTarget,
+                Trigger = TriggerType.UACBypass,
+                TriggerIdentifier = "Copy-to-Temp Side-Loading",
+                RunAsAccount = uacCtx.RunAsAccount,
+                ServiceStartType = "MANUAL",
+                IsSimulatedCopyAttack = true,
+                SurvivesReboot = false,
+                DiscoverySource = "static",
+                Notes =
+                {
+                    "COPY & SIDE-LOAD: Attacker copies this AutoElevate EXE to a writable " +
+                    "folder, places the DLL next to it, and executes for a silent UAC bypass."
+                }
             });
         }
 
@@ -339,6 +377,7 @@ public class StaticDiscoveryEngine
     {
         TriggerType.Service when ctx.IsAutoStart => 10,
         TriggerType.Service => 8,
+        TriggerType.UACBypass => 8,
         TriggerType.ScheduledTask when ctx.IsAutoStart => 7,
         TriggerType.ScheduledTask => 6,
         TriggerType.Startup => 5,

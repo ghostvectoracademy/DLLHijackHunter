@@ -25,6 +25,7 @@ public enum TriggerType
     WMI,
     RunKey,
     Manual,
+    UACBypass,
     Unknown
 }
 
@@ -79,6 +80,7 @@ public class HijackCandidate
     // ─── Trigger context ───
     public TriggerType Trigger { get; set; } = TriggerType.Unknown;
     public string TriggerIdentifier { get; set; } = "";
+    public bool IsSimulatedCopyAttack { get; set; } // Attacker copies EXE to writable folder
     public string RunAsAccount { get; set; } = "";
     public string? ServiceStartType { get; set; }
     public TimeSpan? TaskFrequency { get; set; }

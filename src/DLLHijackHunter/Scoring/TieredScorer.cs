@@ -29,7 +29,11 @@ public class TieredScorer
         {
             c.Confidence -= 10;
         }
-        // NotTested = no change
+        // NotTested = no change (but UAC bypass gets a bonus for inherent reliability)
+        if (c.CanaryResult == CanaryResult.NotTested && c.Trigger == TriggerType.UACBypass)
+        {
+            c.Confidence += 10;
+        }
 
         c.Confidence = Math.Clamp(c.Confidence, 0, 100);
 
@@ -48,6 +52,12 @@ public class TieredScorer
         c.FinalScore = Math.Round(Math.Clamp(c.FinalScore, 0, 10), 1);
 
         // ═══ Add use cases if not already present ═══
+        if (c.Trigger == TriggerType.UACBypass && !c.UseCases.Contains("Silent UAC Bypass"))
+            c.UseCases.Add("Silent UAC Bypass (Admin execution without prompt)");
+
+        if (c.IsSimulatedCopyAttack && !c.UseCases.Contains("Copy & Side-Load"))
+            c.UseCases.Add("Copy & Side-Load (Copy EXE to writable folder, drop DLL next to it)");
+            
         if (c.SurvivesReboot && !c.UseCases.Contains("Persistence"))
             c.UseCases.Add("Persistence");
 
@@ -76,6 +86,7 @@ public class TieredScorer
         {
             TriggerType.Service when c.ServiceStartType == "AUTO_START" => 3.0,
             TriggerType.ScheduledTask when c.TaskFrequency < TimeSpan.FromHours(1) => 2.5,
+            TriggerType.UACBypass => 2.8,
             TriggerType.Startup or TriggerType.RunKey => 2.0,
             TriggerType.Service => 1.5,
             TriggerType.COM => 1.0,

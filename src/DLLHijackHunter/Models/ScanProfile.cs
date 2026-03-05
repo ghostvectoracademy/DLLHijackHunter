@@ -21,6 +21,7 @@ public class ScanProfile
     public string? OutputPath { get; set; }
     public bool Verbose { get; set; } = false;
     public string? TargetPath { get; set; }
+    public bool TriggerAutoElevate { get; set; } = false;
 
     public static ScanProfile Aggressive => new()
     {
@@ -33,7 +34,8 @@ public class ScanProfile
         CanaryTimeoutSeconds = 30,
         TriggerServices = true,
         TriggerScheduledTasks = true,
-        TriggerCOM = true
+        TriggerCOM = true,
+        TriggerAutoElevate = true
     };
 
     public static ScanProfile Strict => new()
@@ -79,12 +81,27 @@ public class ScanProfile
         TriggerCOM = true
     };
 
+    public static ScanProfile UACBypass => new()
+    {
+        Name = "uac-bypass",
+        MinConfidence = 20,
+        RunCanary = false, // Canarying AutoElevate apps causes UAC prompts if they fail, keep it safe
+        RunETW = false,
+        IncludeSamePrivilege = false,
+        IncludePPL = false,
+        TriggerServices = false,
+        TriggerScheduledTasks = false,
+        TriggerCOM = false,
+        TriggerAutoElevate = true
+    };
+
     public static ScanProfile FromName(string name) => name.ToLower() switch
     {
         "aggressive" => Aggressive,
         "strict" => Strict,
         "safe" => Safe,
         "redteam" => RedTeam,
+        "uac-bypass" => UACBypass,
         _ => new ScanProfile { Name = name }
     };
 }

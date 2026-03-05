@@ -24,6 +24,13 @@ public class WritabilityFilter : IHardGate
                 return true;
             }
 
+            // Skip simulated copy attacks (attacker controls the target folder)
+            if (c.IsSimulatedCopyAttack)
+            {
+                c.FilterResults["Writability"] = FilterResult.Passed;
+                return true;
+            }
+
             string targetPath = c.HijackWritablePath;
             if (string.IsNullOrEmpty(targetPath))
             {
