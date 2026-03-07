@@ -142,8 +142,8 @@ public class StaticDiscoveryEngine
             }
 
             // ─── Check PATH directories for writable entries ───
-            ctx.Status("[yellow]Checking PATH directories...[/]");
-            CheckWritablePathDirectories();
+            ctx.Status("[yellow]Weaponizing writable PATH directories...[/]");
+            CheckWritablePathDirectories(candidates, contexts);
 
             AnsiConsole.MarkupLine($"  [green]Generated {candidates.Count} candidates[/]");
         });
@@ -160,15 +160,17 @@ public class StaticDiscoveryEngine
     {
         var candidates = new List<HijackCandidate>();
 
-        // Find hijackable positions in search order
-        var hijackPositions = SearchOrderCalculator.FindHijackablePositions(binaryPath, dllName);
+        // ─── KNOWLEDGE BASE LOOKUP ───
+        bool isKnownVuln = KnowledgeBaseEngine.CheckKnowledgeBase(binaryPath, dllName, out string? kbRef);
 
+        // 1. Normal Search Order Logic
+        var hijackPositions = SearchOrderCalculator.FindHijackablePositions(binaryPath, dllName);
         foreach (var hijackPath in hijackPositions)
         {
             var bestCtx = contexts.OrderByDescending(c => GetContextPriority(c)).First();
             string? legitPath = SearchOrderCalculator.FindActualDllLocation(binaryPath, dllName);
 
-            candidates.Add(new HijackCandidate
+            var candidate = new HijackCandidate
             {
                 BinaryPath = binaryPath,
                 DllName = dllName,
@@ -181,10 +183,18 @@ public class StaticDiscoveryEngine
                 ServiceStartType = bestCtx.StartType,
                 TaskFrequency = bestCtx.RepeatInterval,
                 SurvivesReboot = bestCtx.IsAutoStart,
-                DiscoverySource = "static"
-            });
-        }
+                DiscoverySource = "static",
+                IsKnownVulnerability = isKnownVuln,
+                KnowledgeBaseReference = kbRef
+            };
+            
+            if (isKnownVuln)
+            {
+                candidate.Notes.Add($"[HIJACKLIBS MATCH] Documented vulnerable software detected! Ref: {kbRef}");
+            }
 
+            candidates.Add(candidate);
+        }
         // Check for .local redirection opportunity
         string dotLocalDir = binaryPath + ".local";
         string dotLocalDllPath = Path.Combine(dotLocalDir, dllName);
@@ -208,8 +218,15 @@ public class StaticDiscoveryEngine
                 ServiceStartType = bestCtx.StartType,
                 SurvivesReboot = bestCtx.IsAutoStart,
                 DiscoverySource = "static",
+                IsKnownVulnerability = isKnownVuln,
+                KnowledgeBaseReference = kbRef,
                 Notes = { "Requires creating .local directory and placing DLL inside" }
             });
+
+            if (isKnownVuln)
+            {
+                candidates.Last().Notes.Add($"[HIJACKLIBS MATCH] Documented vulnerable software detected! Ref: {kbRef}");
+            }
         }
 
         // ═══ AutoElevate Side-Loading Simulation ═══
@@ -234,12 +251,19 @@ public class StaticDiscoveryEngine
                 IsSimulatedCopyAttack = true,
                 SurvivesReboot = false,
                 DiscoverySource = "static",
+                IsKnownVulnerability = isKnownVuln,
+                KnowledgeBaseReference = kbRef,
                 Notes =
                 {
                     "COPY & SIDE-LOAD: Attacker copies this AutoElevate EXE to a writable " +
                     "folder, places the DLL next to it, and executes for a silent UAC bypass."
                 }
             });
+
+            if (isKnownVuln)
+            {
+                candidates.Last().Notes.Add($"[HIJACKLIBS MATCH] Documented vulnerable software detected! Ref: {kbRef}");
+            }
         }
 
         return candidates;
@@ -277,7 +301,7 @@ public class StaticDiscoveryEngine
         }
     }
 
-    private void CheckWritablePathDirectories()
+    private void CheckWritablePathDirectories(List<HijackCandidate> candidates, List<DiscoveryContext> contexts)
     {
         var pathDirs = Environment.GetEnvironmentVariable("PATH")?.Split(';',
             StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
@@ -288,20 +312,61 @@ public class StaticDiscoveryEngine
         foreach (var dir in pathDirs)
         {
             if (!Directory.Exists(dir)) continue;
-            if (!AclChecker.IsDirectoryWritableByCurrentUser(dir)) continue;
-            writablePaths.Add(dir);
+            if (Native.AclChecker.IsDirectoryWritableByCurrentUser(dir)) writablePaths.Add(dir);
         }
 
         if (writablePaths.Any())
         {
-            AnsiConsole.MarkupLine($"  [yellow]⚠ {writablePaths.Count} writable PATH directories found:[/]");
-            foreach (var wp in writablePaths.Take(5))
-                AnsiConsole.MarkupLine($"    [yellow]• {Markup.Escape(wp)}[/]");
-            if (writablePaths.Count > 5)
-                AnsiConsole.MarkupLine($"    [dim]... and {writablePaths.Count - 5} more[/]");
+            AnsiConsole.MarkupLine($"  [yellow]⚠ {writablePaths.Count} writable PATH directories found. Initializing Automated Exploit Engine...[/]");
+            
+            // These are notorious Phantom DLLs that native Windows services constantly poll for.
+            // If they are missing from System32, the OS falls back to searching the PATH.
+            var globalTargets = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                { "wlbsctrl.dll", "IKEEXT" },        // IKE and AuthIP IPsec Keying Modules
+                { "tsmsisrv.dll", "SessionEnv" },    // Remote Desktop Configuration
+                { "ualapi.dll", "Spooler" },         // Print Spooler
+                { "wlanhlp.dll", "WlanSvc" },        // WLAN AutoConfig
+                { "WptsExtensions.dll", "Schedule" } // Task Scheduler
+            };
+
+            foreach (var wp in writablePaths)
+            {
+                AnsiConsole.MarkupLine($"    [red]• Weaponizing PATH: {Markup.Escape(wp)}[/]");
+                
+                foreach (var target in globalTargets)
+                {
+                    // Find the context for the native service so the Canary Engine can trigger it
+                    var svcCtx = contexts.FirstOrDefault(c => 
+                        c.TriggerType == TriggerType.Service && 
+                        c.TriggerIdentifier.Equals(target.Value, StringComparison.OrdinalIgnoreCase));
+
+                    if (svcCtx != null)
+                    {
+                        candidates.Add(new HijackCandidate
+                        {
+                            BinaryPath = svcCtx.BinaryPath,
+                            DllName = target.Key,
+                            DllLegitPath = null, // It's a Phantom DLL
+                            Type = HijackType.EnvPath,
+                            HijackWritablePath = Path.Combine(wp, target.Key),
+                            Trigger = TriggerType.Service,
+                            TriggerIdentifier = svcCtx.TriggerIdentifier,
+                            RunAsAccount = svcCtx.RunAsAccount,
+                            ServiceStartType = svcCtx.StartType,
+                            SurvivesReboot = svcCtx.IsAutoStart,
+                            DiscoverySource = "static",
+                            IsKnownVulnerability = true,
+                            KnowledgeBaseReference = "https://hijacklibs.net/",
+                            Notes = { $"GLOBAL PATH WEAPONIZATION: Service '{target.Value}' dynamically polls for {target.Key}. Dropping it in writable PATH ({wp}) guarantees a system-wide hijack." }
+                        });
+                        
+                        candidates.Last().Notes.Add($"[HIJACKLIBS MATCH] Documented System-Wide PATH Hijack Strategy Detected! Ref: https://hijacklibs.net/");
+                    }
+                }
+            }
         }
     }
-
     // ═══ NEW: FILTER BY TARGET ═══
     private static List<DiscoveryContext> FilterByTarget(List<DiscoveryContext> contexts, string target)
     {

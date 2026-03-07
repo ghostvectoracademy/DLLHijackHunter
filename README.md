@@ -2,7 +2,7 @@
   <img src="https://img.shields.io/badge/Platform-Windows-blue?style=for-the-badge&logo=windows" />
   <img src="https://img.shields.io/badge/.NET-8.0-purple?style=for-the-badge&logo=dotnet" />
   <img src="https://img.shields.io/badge/License-MIT-green?style=for-the-badge" />
-  <img src="https://img.shields.io/badge/Version-1.2.0-orange?style=for-the-badge" />
+  <img src="https://img.shields.io/badge/Version-1.3.0-orange?style=for-the-badge" />
 </p>
 
 <h1 align="center">DLLHijackHunter</h1>
@@ -10,7 +10,7 @@
 
 <p align="center">
   <strong>Automated DLL Hijacking Discovery, Validation, and Confirmation</strong><br/>
-  <em>The only tool that proves hijacks actually work before reporting them.</em>
+  <em>Turning local misconfigurations into weaponized, confirmed attack paths.</em>
 </p>
 
 ---
@@ -24,7 +24,7 @@
 3. **Canary Confirmation** — Deploys a harmless canary DLL and triggers the binary to prove the hijack works
 4. **Scoring & Reporting** — Ranks findings by exploitability with a tiered confidence system
 
-> Every existing DLL hijacking tool stops at "this DLL might be hijackable." DLLHijackHunter actually proves it, reports the achieved privilege level, and identifies whether it survives reboot.
+> Every existing DLL hijacking tool stops at "this DLL might be hijackable." DLLHijackHunter actually proves it, cross-references it against known exploits (HijackLibs), and actively weaponizes writable directories.
 
 ---
 
@@ -87,7 +87,7 @@ flowchart TB
 | **Side-Loading** | Abuse legitimate app loading DLLs from its directory | High |
 | **.local Redirect** | Hijack via `.local` directory redirection | High |
 | **KnownDLL Bypass** | Bypass KnownDLLs via .local or WoW64 | Medium |
-| **ENV PATH** | Writable directory in system PATH | Low |
+| **ENV PATH** | Automated weaponization of writable directories in system PATH | High (for native services) |
 | **CWD** | Current Working Directory hijack | Low |
 | **AppInit DLLs** | AppInit_DLLs registry abuse | Low |
 | **IFEO** | Image File Execution Options debugger | Medium |
@@ -100,6 +100,13 @@ DLLHijackHunter includes dedicated UAC bypass detection:
 - **Manifest AutoElevate** — Scans `System32` and `SysWOW64` for EXEs with `<autoElevate>true</autoElevate>` in their embedded manifests
 - **COM AutoElevation** — Scans `HKLM\SOFTWARE\Classes\CLSID` for COM objects with `Elevation\Enabled=1` (covers techniques like Fodhelper, CMSTPLUA, and similar)
 - **Side-Load Simulation** — For AutoElevate binaries that don't call `SetDllDirectory` or `SetDefaultDllDirectories`, simulates the "copy EXE to writable folder + drop DLL" attack vector
+
+### Threat Intelligence & Weaponization
+
+**DLLHijackHunter is a Threat Intelligence Scanner:**
+- **Vulnerability Knowledge Base** — Cross-references discovered imports against an offline database of known vulnerabilities (HijackLibs). Finds get massive `+15` Confidence score boosts and direct exploit URLs.
+- **Automated PATH Exploitation** — Beyond just checking for writable `%PATH%` folders, it dynamically weaponizes them by generating hijack candidates for notorious native Windows services (like `IKEEXT`, `SessionEnv`, `Spooler`) that blindly poll the PATH for missing DLLs.
+- **Expanded Phantom DLL Database** — Actively hunts for **497+ specific Phantom DLLs** across 25 categories (including .NET/CLR, Third-Party Sideloading, COM/OLE, and Virtualization).
 
 ### Filter Pipeline
 
@@ -166,6 +173,8 @@ The canary DLL:
 | Confidence scoring | 5-tier | ❌ | ❌ | ❌ | ❌ |
 | Auto trigger (svc/task/COM) | ✅ | ❌ | ❌ | ❌ | ❌ |
 | HTML/JSON reporting | ✅ | ❌ | ❌ | TXT | ❌ |
+| Threat Intel (HijackLibs) | ✅ | ❌ | ❌ | ❌ | ❌ |
+| Automated PATH Exploits | ✅ | ❌ | ❌ | ❌ | ❌ |
 | Target-specific scanning | ✅ | ❌ | ❌ | ❌ | ✅ |
 | Self-contained binary | ✅ | ❌ | ❌ | ✅ | ❌ |
 
