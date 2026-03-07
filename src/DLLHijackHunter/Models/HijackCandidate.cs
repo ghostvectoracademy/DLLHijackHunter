@@ -108,6 +108,10 @@ public class HijackCandidate
     public double FinalScore { get; set; }
     public bool SurvivesReboot { get; set; }
 
+    // ─── Knowledge Base Integration ───
+    public bool IsKnownVulnerability { get; set; }
+    public string? KnowledgeBaseReference { get; set; }
+
     // ─── Metadata ───
     public List<string> UseCases { get; set; } = new();
     public List<string> Notes { get; set; } = new();

@@ -35,7 +35,15 @@ public class TieredScorer
             c.Confidence += 10;
         }
 
-        c.Confidence = Math.Clamp(c.Confidence, 0, 100);
+        // ═══ Knowledge Base Boost ═══
+        if (c.IsKnownVulnerability)
+        {
+            c.Confidence += 15; // Massive boost for known public vulnerabilities
+            if (!c.UseCases.Contains("Documented Exploit (HijackLibs)"))
+                c.UseCases.Add("Documented Exploit (HijackLibs)");
+        }
+
+        c.Confidence = Math.Clamp(c.Confidence, 0.0, 100.0);
 
         // ═══ Determine tier ═══
         c.Tier = c.CanaryResult == CanaryResult.Fired ? ConfidenceTier.Confirmed :
@@ -100,7 +108,7 @@ public class TieredScorer
             HijackType.DotLocal => 1.8,
             HijackType.SearchOrder => 1.5,
             HijackType.SideLoad => 1.5,
-            HijackType.EnvPath => 1.0,
+            HijackType.EnvPath => 2.0,
             HijackType.CWD => 0.5,
             _ => 1.0
         };
