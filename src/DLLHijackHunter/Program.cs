@@ -137,7 +137,7 @@ public class Program
 
         // ─── Banner ───
         BannerConstants.PrintBanner();
-        AnsiConsole.MarkupLine($"[dim]v1.3.0 | {{DateTime.UtcNow:yyyy-MM-dd HH:mm:ss}} UTC[/]\n");
+        AnsiConsole.MarkupLine($"[dim]v2.0.0 | {{DateTime.UtcNow:yyyy-MM-dd HH:mm:ss}} UTC[/]\n");
 
         // ─── Elevation check ───
         bool isElevated;
@@ -362,41 +362,25 @@ public class Program
     private static async Task GenerateOutput(ScanResult scanResult, string format, string? outputPath)
     {
         string effectiveFormat = format;
-        if (outputPath != null)
+        if (outputPath != null) effectiveFormat = Path.GetExtension(outputPath).ToLowerInvariant() switch { ".json" => "json", ".html" or ".htm" => "html", _ => format };
+
+        if (effectiveFormat == "json") 
+            await ReportGenerator.GenerateJsonReport(scanResult, outputPath ?? $"hijackhunter_{DateTime.Now:yyyyMMdd_HHmmss}.json");
+        else if (effectiveFormat == "html") 
+            await ReportGenerator.GenerateHtmlReport(scanResult, outputPath ?? $"hijackhunter_{DateTime.Now:yyyyMMdd_HHmmss}.html");
+        else
         {
-            string ext = Path.GetExtension(outputPath).ToLowerInvariant();
-            effectiveFormat = ext switch
-            {
-                ".json" => "json",
-                ".html" or ".htm" => "html",
-                _ => format
-            };
-        }
+            // 1. Generate normal report
+            ReportGenerator.GenerateConsoleReport(scanResult);
+            
+            // 2. ═══ GENERATE ATTACK CHAINS ═══
+            var correlator = new AttackChainCorrelator();
+            var chains = correlator.BuildChains(scanResult.AllFindings);
+            ReportGenerator.RenderAttackChains(chains);
 
-        switch (effectiveFormat)
-        {
-            case "json":
-                string jsonPath = outputPath ??
-                    $"hijackhunter_report_{DateTime.Now:yyyyMMdd_HHmmss}.json";
-                await ReportGenerator.GenerateJsonReport(scanResult, jsonPath);
-                break;
-
-            case "html":
-                string htmlPath = outputPath ??
-                    $"hijackhunter_report_{DateTime.Now:yyyyMMdd_HHmmss}.html";
-                await ReportGenerator.GenerateHtmlReport(scanResult, htmlPath);
-                break;
-
-            default:
-                ReportGenerator.GenerateConsoleReport(scanResult);
-                break;
-        }
-
-        // Always write JSON alongside console output for record-keeping
-        if (effectiveFormat == "console" && scanResult.TotalFindings > 0)
-        {
-            string autoJsonPath = $"hijackhunter_{DateTime.Now:yyyyMMdd_HHmmss}.json";
-            await ReportGenerator.GenerateJsonReport(scanResult, autoJsonPath);
+            // 3. Save JSON backup
+            if (scanResult.TotalFindings > 0) 
+                await ReportGenerator.GenerateJsonReport(scanResult, $"hijackhunter_{DateTime.Now:yyyyMMdd_HHmmss}.json");
         }
     }
 }
