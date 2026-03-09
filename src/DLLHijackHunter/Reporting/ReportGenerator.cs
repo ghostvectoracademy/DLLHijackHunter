@@ -123,4 +123,42 @@ public static class ReportGenerator
         await File.WriteAllTextAsync(outputPath, html);
         AnsiConsole.MarkupLine($"[green]HTML report saved to: {Markup.Escape(outputPath)}[/]");
     }
+    public static void RenderAttackChains(List<AttackChain> chains)
+    {
+        if (!chains.Any()) return;
+
+        AnsiConsole.WriteLine();
+        AnsiConsole.Write(new Rule("[bold red]⛓️ PRIVESC ATTACK CHAINS DISCOVERED[/]").RuleStyle("red"));
+        AnsiConsole.WriteLine();
+
+        foreach (var chain in chains)
+        {
+            var root = new Tree(new Markup($"[bold cyan]{chain.Name}[/]"));
+            root.Style = Style.Parse("cyan");
+
+            root.AddNode(new Markup($"[dim]{chain.Description}[/]"));
+            var pathNode = root.AddNode(new Markup("[bold yellow]Attack Path:[/]"));
+
+            foreach (var step in chain.Steps)
+            {
+                string actionColor = step.Action.Contains("💥") ? "bold red" : "white";
+                var stepNode = pathNode.AddNode(new Markup($"[{actionColor}]{step.StepNumber}. {Markup.Escape(step.Action)}[/]"));
+                
+                if (!string.IsNullOrEmpty(step.Details))
+                    stepNode.AddNode(new Markup($"[dim]{Markup.Escape(step.Details)}[/]"));
+
+                if (step.Finding != null)
+                {
+                    var detailsTable = new Table().Border(TableBorder.Rounded).BorderColor(Color.Grey);
+                    detailsTable.AddColumn("Target");
+                    detailsTable.AddColumn("Vector");
+                    detailsTable.AddRow(Path.GetFileName(step.Finding.BinaryPath), step.Finding.Type.ToString());
+                    stepNode.AddNode(detailsTable);
+                }
+            }
+
+            AnsiConsole.Write(root);
+            AnsiConsole.WriteLine();
+        }
+    }
 }
