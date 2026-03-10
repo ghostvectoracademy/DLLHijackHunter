@@ -80,6 +80,10 @@ public class Program
             aliases: new[] { "--target", "-t" },
             description: "Target specific binary, directory, or filename (e.g., 'notepad.exe', 'C:\\MyApp', 'C:\\MyApp\\app.exe')");
 
+        var lpeOnlyOption = new Option<bool>(
+            aliases: new[] { "--lpe-only" },
+            description: "Strict LPE hunting: ignores System32/Program Files to only show Standard User vulns");
+
         var logFileOption = new Option<string?>(
             aliases: new[] { "--log-file" },
             description: "Write scan log to file for diagnostic purposes");
@@ -93,6 +97,7 @@ public class Program
         rootCommand.AddOption(confirmedOnlyOption);
         rootCommand.AddOption(verboseOption);
         rootCommand.AddOption(targetOption);
+        rootCommand.AddOption(lpeOnlyOption);
         rootCommand.AddOption(logFileOption);
 
         rootCommand.SetHandler(async (ctx) =>
@@ -106,6 +111,7 @@ public class Program
             var confirmedOnly = ctx.ParseResult.GetValueForOption(confirmedOnlyOption);
             var verbose = ctx.ParseResult.GetValueForOption(verboseOption);
             var target = ctx.ParseResult.GetValueForOption(targetOption);
+            var lpeOnly = ctx.ParseResult.GetValueForOption(lpeOnlyOption);
             var logFile = ctx.ParseResult.GetValueForOption(logFileOption);
 
             using var cts = new CancellationTokenSource();
@@ -117,7 +123,7 @@ public class Program
             };
 
             await RunScan(profile, output, format, minConf, noCanary, noEtw,
-                confirmedOnly, verbose, target, logFile, cts.Token);
+                confirmedOnly, verbose, target, lpeOnly, logFile, cts.Token);
         });
 
         return await rootCommand.InvokeAsync(args);
@@ -125,7 +131,7 @@ public class Program
 
     private static async Task RunScan(string profileName, string? outputPath, string format,
         double minConfidence, bool noCanary, bool noEtw, bool confirmedOnly, bool verbose,
-        string? target, string? logFile, CancellationToken cancellationToken)
+        string? target, bool lpeOnly, string? logFile, CancellationToken cancellationToken)
     {
         var stopwatch = Stopwatch.StartNew();
 
@@ -137,7 +143,7 @@ public class Program
 
         // ─── Banner ───
         BannerConstants.PrintBanner();
-        AnsiConsole.MarkupLine($"[dim]v2.0.0 | {{DateTime.UtcNow:yyyy-MM-dd HH:mm:ss}} UTC[/]\n");
+        AnsiConsole.MarkupLine($"[dim]v2.1.0 | {{DateTime.UtcNow:yyyy-MM-dd HH:mm:ss}} UTC[/]\n");
 
         // ─── Elevation check ───
         bool isElevated;
@@ -162,6 +168,7 @@ public class Program
         var profile = ScanProfile.FromName(profileName);
         profile.MinConfidence = minConfidence;
         profile.Verbose = verbose;
+        profile.LpeOnly = lpeOnly;
         if (noCanary) profile.RunCanary = false;
         if (noEtw) profile.RunETW = false;
         if (confirmedOnly) profile.ConfirmedOnly = true;

@@ -19,7 +19,7 @@ public class FilterPipeline
         {
             new ApiSetSchemaFilter(),
             new KnownDllsFilter(),
-            new WritabilityFilter()
+            new WritabilityFilter(_profile.LpeOnly)
         };
 
         _softGates = new List<ISoftGate>

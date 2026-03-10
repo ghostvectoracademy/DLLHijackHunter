@@ -12,19 +12,24 @@ namespace DLLHijackHunter.Filters;
 public class WritabilityFilter : IHardGate
 {
     public string Name => "Directory Writability (ACL)";
+    private readonly bool _lpeOnly;
+
+    // Constructor now accepts the LPE flag
+    public WritabilityFilter(bool lpeOnly = false)
+    {
+        _lpeOnly = lpeOnly;
+    }
 
     public List<HijackCandidate> Apply(List<HijackCandidate> candidates)
     {
         return candidates.Where(c =>
         {
-            // Skip PATH-type entries that were already verified
             if (c.Type == HijackType.EnvPath)
             {
                 c.FilterResults["Writability"] = FilterResult.Passed;
                 return true;
             }
 
-            // Skip simulated copy attacks (attacker controls the target folder)
             if (c.IsSimulatedCopyAttack)
             {
                 c.FilterResults["Writability"] = FilterResult.Passed;
@@ -38,15 +43,26 @@ public class WritabilityFilter : IHardGate
                 return false;
             }
 
+            // ═══ NEW: LPE-ONLY MODE ═══
+            if (_lpeOnly)
+            {
+                // If the path is in a default Admin-only location, kill it immediately
+                if (targetPath.StartsWith(Environment.SystemDirectory, StringComparison.OrdinalIgnoreCase) ||
+                    targetPath.StartsWith(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), StringComparison.OrdinalIgnoreCase) ||
+                    targetPath.StartsWith(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), StringComparison.OrdinalIgnoreCase) ||
+                    targetPath.StartsWith(Environment.GetFolderPath(Environment.SpecialFolder.Windows), StringComparison.OrdinalIgnoreCase))
+                {
+                    c.FilterResults["Writability"] = FilterResult.Failed;
+                    return false;
+                }
+            }
+
             bool writable;
 
             if (c.Type == HijackType.DotLocal)
             {
-                // For .local, we need to create the .local directory
-                string? dotLocalParent = Path.GetDirectoryName(
-                    Path.GetDirectoryName(targetPath));
-                writable = dotLocalParent != null &&
-                          AclChecker.IsDirectoryWritableByCurrentUser(dotLocalParent);
+                string? dotLocalParent = Path.GetDirectoryName(Path.GetDirectoryName(targetPath));
+                writable = dotLocalParent != null && AclChecker.IsDirectoryWritableByCurrentUser(dotLocalParent);
             }
             else
             {

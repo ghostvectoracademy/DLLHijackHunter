@@ -22,6 +22,7 @@ public class ScanProfile
     public bool Verbose { get; set; } = false;
     public string? TargetPath { get; set; }
     public bool TriggerAutoElevate { get; set; } = false;
+    public bool LpeOnly { get; set; } = false;
 
     public static ScanProfile Aggressive => new()
     {
