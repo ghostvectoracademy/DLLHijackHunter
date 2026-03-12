@@ -47,7 +47,7 @@ public static class TriggerExecutor
             await Task.Delay(2000);
 
             // Start the service
-            var (exitCode, _) = await RunProcess("sc.exe", $"start \"{serviceName}\"", timeoutSeconds);
+            var (exitCode, _, _) = await RunProcess("sc.exe", $"start \"{serviceName}\"", timeoutSeconds);
             await Task.Delay(3000); // wait for DLL loading
 
             return exitCode == 0;
@@ -62,8 +62,11 @@ public static class TriggerExecutor
     {
         try
         {
-            var (exitCode, _) = await RunProcess("schtasks.exe",
-                $"/run /tn \"{taskPath}\"", timeoutSeconds);
+            var (exitCode, _, _) = await RunProcess(
+                "schtasks.exe",
+                $"/run /tn \"{taskPath}\"",
+                timeoutSeconds);
+
             await Task.Delay(3000);
             return exitCode == 0;
         }
@@ -79,10 +82,13 @@ public static class TriggerExecutor
         {
             // Use PowerShell to instantiate the COM object
             string psCommand = $"[Activator]::CreateInstance(" +
-                $"[Type]::GetTypeFromCLSID('{clsid}'))";
+                               $"[Type]::GetTypeFromCLSID('{clsid}'))";
 
-            var (exitCode, _) = await RunProcess("powershell.exe",
-                $"-NoProfile -Command \"{psCommand}\"", timeoutSeconds);
+            var (exitCode, _, _) = await RunProcess(
+                "powershell.exe",
+                $"-NoProfile -Command \"{psCommand}\"",
+                timeoutSeconds);
+
             await Task.Delay(2000);
             return exitCode == 0;
         }
@@ -92,8 +98,10 @@ public static class TriggerExecutor
         }
     }
 
-    private static async Task<(int exitCode, string output)> RunProcess(
-        string fileName, string arguments, int timeoutSeconds)
+    private static async Task<(int exitCode, string stdout, string stderr)> RunProcess(
+        string fileName,
+        string arguments,
+        int timeoutSeconds)
     {
         var psi = new ProcessStartInfo
         {
@@ -106,21 +114,39 @@ public static class TriggerExecutor
         };
 
         using var proc = Process.Start(psi);
-        if (proc == null) return (-1, "");
+        if (proc == null)
+            return (-1, string.Empty, string.Empty);
 
-        string output = await proc.StandardOutput.ReadToEndAsync();
+        Task<string> stdoutTask = proc.StandardOutput.ReadToEndAsync();
+        Task<string> stderrTask = proc.StandardError.ReadToEndAsync();
 
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(timeoutSeconds));
+
         try
         {
             await proc.WaitForExitAsync(cts.Token);
+            string stdout = await stdoutTask;
+            string stderr = await stderrTask;
+            return (proc.ExitCode, stdout, stderr);
         }
         catch (OperationCanceledException)
         {
-            try { proc.Kill(); } catch { }
-            return (-1, output);
-        }
+            try
+            {
+                if (!proc.HasExited)
+                    proc.Kill(entireProcessTree: true);
+            }
+            catch
+            {
+            }
 
-        return (proc.ExitCode, output);
+            string stdout = string.Empty;
+            string stderr = string.Empty;
+
+            try { stdout = await stdoutTask; } catch { }
+            try { stderr = await stderrTask; } catch { }
+
+            return (-1, stdout, stderr);
+        }
     }
 }

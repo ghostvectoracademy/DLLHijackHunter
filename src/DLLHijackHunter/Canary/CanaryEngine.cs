@@ -91,7 +91,9 @@ public class CanaryEngine
                 var pe = PEAnalyzer.Analyze(candidate.BinaryPath);
                 is64Bit = pe.Is64Bit;
             }
-            catch { }
+            catch
+            {
+            }
 
             // Build canary DLL
             var canaryInfo = CanaryDllBuilder.BuildCanary(
@@ -133,12 +135,15 @@ public class CanaryEngine
                         CreateNoWindow = true,
                         RedirectStandardOutput = true
                     };
-                    var queryProc = System.Diagnostics.Process.Start(queryPsi);
-                    string queryOut = queryProc?.StandardOutput.ReadToEnd() ?? "";
+
+                    using var queryProc = System.Diagnostics.Process.Start(queryPsi);
+                    string queryOut = queryProc?.StandardOutput.ReadToEnd() ?? string.Empty;
                     queryProc?.WaitForExit(2000);
                     serviceWasRunning = queryOut.Contains("RUNNING", StringComparison.OrdinalIgnoreCase);
                 }
-                catch { }
+                catch
+                {
+                }
             }
 
             if (hadExistingDll)
@@ -165,7 +170,10 @@ public class CanaryEngine
                     // For .local hijacks, create the .local directory
                     if (candidate.Type == HijackType.DotLocal)
                     {
-                        try { Directory.CreateDirectory(targetDir); }
+                        try
+                        {
+                            Directory.CreateDirectory(targetDir);
+                        }
                         catch
                         {
                             candidate.CanaryResult = CanaryResult.Failed;
@@ -232,6 +240,27 @@ public class CanaryEngine
             }
             finally
             {
+                // For services, stop first to reduce DLL/file locking before cleanup/restore
+                if (candidate.Trigger == TriggerType.Service)
+                {
+                    try
+                    {
+                        var stopPsi = new System.Diagnostics.ProcessStartInfo
+                        {
+                            FileName = "sc.exe",
+                            Arguments = $"stop \"{candidate.TriggerIdentifier}\"",
+                            UseShellExecute = false,
+                            CreateNoWindow = true
+                        };
+
+                        using var stopProc = System.Diagnostics.Process.Start(stopPsi);
+                        stopProc?.WaitForExit(5000);
+                    }
+                    catch
+                    {
+                    }
+                }
+
                 // Cleanup: remove canary DLL
                 try
                 {
@@ -270,43 +299,33 @@ public class CanaryEngine
                                 Directory.Delete(dotLocalDir);
                             }
                         }
-                        catch { }
+                        catch
+                        {
+                        }
                     }
                 }
 
                 // Restore service to its original state
-                if (candidate.Trigger == TriggerType.Service)
+                if (candidate.Trigger == TriggerType.Service && serviceWasRunning)
                 {
                     try
                     {
-                        // Stop it first to reduce file locking during backup restoration
-                        var stopPsi = new System.Diagnostics.ProcessStartInfo
+                        await Task.Delay(1000);
+
+                        var startPsi = new System.Diagnostics.ProcessStartInfo
                         {
                             FileName = "sc.exe",
-                            Arguments = $"stop \"{candidate.TriggerIdentifier}\"",
+                            Arguments = $"start \"{candidate.TriggerIdentifier}\"",
                             UseShellExecute = false,
                             CreateNoWindow = true
                         };
-                        var stopProc = System.Diagnostics.Process.Start(stopPsi);
-                        stopProc?.WaitForExit(2000);
 
-                        // If it was originally running, start it back up
-                        if (serviceWasRunning)
-                        {
-                            await Task.Delay(1000);
-
-                            var startPsi = new System.Diagnostics.ProcessStartInfo
-                            {
-                                FileName = "sc.exe",
-                                Arguments = $"start \"{candidate.TriggerIdentifier}\"",
-                                UseShellExecute = false,
-                                CreateNoWindow = true
-                            };
-                            var startProc = System.Diagnostics.Process.Start(startPsi);
-                            startProc?.WaitForExit(5000);
-                        }
+                        using var startProc = System.Diagnostics.Process.Start(startPsi);
+                        startProc?.WaitForExit(5000);
                     }
-                    catch { }
+                    catch
+                    {
+                    }
                 }
             }
         }
@@ -326,7 +345,8 @@ public class CanaryEngine
             foreach (var line in lines)
             {
                 // Safely skip the informational header line formatted by snprintf
-                if (line.StartsWith("[DllHijackHunter]", StringComparison.OrdinalIgnoreCase)) continue;
+                if (line.StartsWith("[DllHijackHunter]", StringComparison.OrdinalIgnoreCase))
+                    continue;
 
                 int eq = line.IndexOf('=');
                 if (eq > 0)
@@ -346,7 +366,13 @@ public class CanaryEngine
                 $"at {candidate.ConfirmedIntegrityLevel} integrity" +
                 (candidate.ConfirmedSeDebug == true ? " with SeDebugPrivilege" : ""));
 
-            try { File.Delete(confirmPath); } catch { }
+            try
+            {
+                File.Delete(confirmPath);
+            }
+            catch
+            {
+            }
         }
         catch (Exception ex)
         {
