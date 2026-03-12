@@ -3,8 +3,11 @@ obj/
 *.user
 *.suo
 .vs/
-*.json
 nul
 tmp/
 release/
 publish/
+
+# Build artifacts and temp test files
+test_penet/
+hijackhunter_*.json

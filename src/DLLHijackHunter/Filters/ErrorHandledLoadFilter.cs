@@ -1,5 +1,3 @@
-// src/DLLHijackHunter/Filters/ErrorHandledLoadFilter.cs
-
 using DLLHijackHunter.Models;
 
 namespace DLLHijackHunter.Filters;

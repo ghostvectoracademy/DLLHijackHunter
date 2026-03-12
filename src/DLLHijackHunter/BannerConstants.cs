@@ -1,5 +1,3 @@
-// src/DLLHijackHunter/BannerConstants.cs
-
 using Spectre.Console;
 
 namespace DLLHijackHunter;

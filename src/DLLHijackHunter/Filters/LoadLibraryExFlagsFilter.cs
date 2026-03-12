@@ -1,5 +1,3 @@
-// src/DLLHijackHunter/Filters/LoadLibraryExFlagsFilter.cs
-
 using DLLHijackHunter.Models;
 using DLLHijackHunter.Discovery;
 

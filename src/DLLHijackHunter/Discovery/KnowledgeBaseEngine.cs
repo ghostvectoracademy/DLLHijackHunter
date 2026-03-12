@@ -1,5 +1,3 @@
-// src/DLLHijackHunter/Discovery/KnowledgeBaseEngine.cs
-
 namespace DLLHijackHunter.Discovery;
 
 public static class KnowledgeBaseEngine

@@ -1,5 +1,3 @@
-// src/DLLHijackHunter/Discovery/SvchostResolver.cs
-
 using Microsoft.Win32;
 
 namespace DLLHijackHunter.Discovery;

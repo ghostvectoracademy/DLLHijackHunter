@@ -1,5 +1,3 @@
-// src/DLLHijackHunter/Filters/WritabilityFilter.cs
-
 using DLLHijackHunter.Models;
 using DLLHijackHunter.Native;
 

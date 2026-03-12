@@ -1,5 +1,3 @@
-// src/DLLHijackHunter/Filters/FilterPipeline.cs
-
 using DLLHijackHunter.Models;
 using Spectre.Console;
 

@@ -1,5 +1,3 @@
-// src/DLLHijackHunter/ScanLogger.cs
-
 using Spectre.Console;
 
 namespace DLLHijackHunter;

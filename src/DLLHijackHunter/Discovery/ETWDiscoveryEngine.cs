@@ -1,5 +1,3 @@
-// src/DLLHijackHunter/Discovery/ETWDiscoveryEngine.cs
-
 using DLLHijackHunter.Models;
 using DLLHijackHunter.Native;
 using Microsoft.Diagnostics.Tracing;

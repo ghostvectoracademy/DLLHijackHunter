@@ -1,5 +1,3 @@
-// tests/DLLHijackHunter.Tests/SearchOrderCalculatorTests.cs
-
 using DLLHijackHunter.Discovery;
 using Xunit;
 

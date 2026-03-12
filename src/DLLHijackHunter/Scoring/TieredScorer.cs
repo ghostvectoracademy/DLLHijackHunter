@@ -1,5 +1,3 @@
-// src/DLLHijackHunter/Scoring/TieredScorer.cs
-
 using DLLHijackHunter.Models;
 
 namespace DLLHijackHunter.Scoring;

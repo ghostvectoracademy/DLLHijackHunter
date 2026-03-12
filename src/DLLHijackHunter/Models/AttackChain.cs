@@ -1,5 +1,3 @@
-// src/DLLHijackHunter/Models/AttackChain.cs
-
 namespace DLLHijackHunter.Models;
 
 public class AttackChain

@@ -1,4 +1,3 @@
-// canary/canary_template.c
 // Standalone canary DLL template — compile with MinGW or MSVC
 // gcc -shared -o canary.dll canary_template.c -ladvapi32 -lkernel32
 

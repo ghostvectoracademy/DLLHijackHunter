@@ -1,5 +1,3 @@
-// src/DLLHijackHunter/Native/TokenHelper.cs
-
 using System.Runtime.InteropServices;
 using System.Security.Principal;
 using System.Text;

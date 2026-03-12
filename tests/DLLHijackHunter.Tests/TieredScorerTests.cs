@@ -1,5 +1,3 @@
-// tests/DLLHijackHunter.Tests/TieredScorerTests.cs
-
 using DLLHijackHunter.Models;
 using DLLHijackHunter.Scoring;
 using Xunit;

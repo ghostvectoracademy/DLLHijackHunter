@@ -1,5 +1,3 @@
-// src/DLLHijackHunter/Canary/CanaryDllBuilder.cs
-
 using DLLHijackHunter.Discovery;
 
 namespace DLLHijackHunter.Canary;

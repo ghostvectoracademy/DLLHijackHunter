@@ -1,5 +1,3 @@
-// src/DLLHijackHunter/Filters/PrivilegeDeltaFilter.cs
-
 using DLLHijackHunter.Models;
 using DLLHijackHunter.Native;
 

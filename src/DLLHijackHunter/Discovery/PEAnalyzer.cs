@@ -1,5 +1,3 @@
-// src/DLLHijackHunter/Discovery/PEAnalyzer.cs
-
 using PeNet;
 using PeNet.Header.Pe;
 

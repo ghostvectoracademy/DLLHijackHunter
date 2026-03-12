@@ -1,5 +1,3 @@
-// src/DLLHijackHunter/Discovery/ServiceEnumerator.cs
-
 using DLLHijackHunter.Models;
 using Microsoft.Win32;
 

@@ -1,5 +1,3 @@
-// src/DLLHijackHunter/Models/ScanProfile.cs
-
 namespace DLLHijackHunter.Models;
 
 public class ScanProfile
