@@ -1,5 +1,3 @@
-// src/DLLHijackHunter/Filters/WinSxSManifestFilter.cs
-
 using DLLHijackHunter.Models;
 using DLLHijackHunter.Discovery;
 

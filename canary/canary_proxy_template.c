@@ -1,4 +1,3 @@
-// canary/canary_proxy_template.c
 // Proxy DLL template — forwards all exports to the original DLL
 // Export pragmas are generated dynamically by CanaryDllBuilder
 

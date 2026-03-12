@@ -1,5 +1,3 @@
-// src/DLLHijackHunter/Models/DiscoveryContext.cs
-
 namespace DLLHijackHunter.Models;
 
 /// <summary>

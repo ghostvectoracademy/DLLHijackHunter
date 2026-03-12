@@ -1,5 +1,3 @@
-// src/DLLHijackHunter/Scoring/AttackChainCorrelator.cs
-
 using DLLHijackHunter.Models;
 using System.Security.Principal;
 

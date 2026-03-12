@@ -1,5 +1,3 @@
-// src/DLLHijackHunter/Canary/TriggerExecutor.cs
-
 using DLLHijackHunter.Models;
 using System.Diagnostics;
 

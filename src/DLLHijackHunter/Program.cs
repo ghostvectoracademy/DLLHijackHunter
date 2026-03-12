@@ -1,5 +1,3 @@
-// src/DLLHijackHunter/Program.cs
-
 using DLLHijackHunter.Models;
 using DLLHijackHunter.Discovery;
 using DLLHijackHunter.Filters;

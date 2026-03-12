@@ -1,5 +1,3 @@
-// src/DLLHijackHunter/Discovery/ScheduledTaskEnumerator.cs
-
 using DLLHijackHunter.Models;
 using Microsoft.Win32.TaskScheduler;
 

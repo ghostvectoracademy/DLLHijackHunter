@@ -1,5 +1,3 @@
-// src/DLLHijackHunter/Native/NativeMethods.cs
-
 using System.Runtime.InteropServices;
 using System.Text;
 

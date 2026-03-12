@@ -1,5 +1,3 @@
-// src/DLLHijackHunter/Canary/CanaryEngine.cs
-
 using DLLHijackHunter.Models;
 using DLLHijackHunter.Discovery;
 using Spectre.Console;

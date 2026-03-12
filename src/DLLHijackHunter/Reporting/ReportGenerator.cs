@@ -1,5 +1,3 @@
-// src/DLLHijackHunter/Reporting/ReportGenerator.cs
-
 using DLLHijackHunter.Models;
 using Spectre.Console;
 using System.Text.Json;

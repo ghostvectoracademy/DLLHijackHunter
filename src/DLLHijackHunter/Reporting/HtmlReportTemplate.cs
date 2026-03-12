@@ -1,5 +1,3 @@
-// src/DLLHijackHunter/Reporting/HtmlReportTemplate.cs
-
 using DLLHijackHunter.Models;
 using System.Text;
 using System.Web;

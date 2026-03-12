@@ -1,5 +1,3 @@
-// src/DLLHijackHunter/Models/HijackCandidate.cs
-
 namespace DLLHijackHunter.Models;
 
 public enum HijackType

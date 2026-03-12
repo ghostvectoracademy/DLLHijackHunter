@@ -1,5 +1,3 @@
-// src/DLLHijackHunter/Filters/ApiSetSchemaFilter.cs
-
 using DLLHijackHunter.Models;
 using Microsoft.Win32;
 

@@ -1,5 +1,3 @@
-// src/DLLHijackHunter/Filters/SignatureVerificationFilter.cs
-
 using DLLHijackHunter.Models;
 using System.Diagnostics;
 
