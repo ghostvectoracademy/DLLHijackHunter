@@ -45,7 +45,7 @@ public class CanaryEngine
 
                     // Skip candidates that can't be triggered automatically
                     if (candidate.Trigger is TriggerType.Startup or TriggerType.RunKey or
-                        TriggerType.Manual or TriggerType.Unknown)
+                        TriggerType.Manual or TriggerType.Unknown or TriggerType.UACBypass)
                     {
                         candidate.CanaryResult = CanaryResult.NotTested;
                         candidate.Notes.Add("Canary not tested — requires manual trigger " +
@@ -103,19 +103,45 @@ public class CanaryEngine
                 is64Bit
             );
 
+            // If we're proxying, add a note about fragility
+            if (canaryInfo.IsProxy)
+            {
+                candidate.Notes.Add("WARNING (EXPERIMENTAL): Canary generated as a Proxy DLL. Export forwarding uses basic name-only forwarding. This is a best-effort, heuristic implementation that may crash the host process if ordinals or decorated names are required.");
+            }
+
             // Check if DLL was built successfully
             if (string.IsNullOrEmpty(canaryInfo.DllPath) || !File.Exists(canaryInfo.DllPath))
             {
                 candidate.CanaryResult = CanaryResult.NotTested;
-                candidate.Notes.Add("Could not build canary DLL — no C compiler available. " +
-                    "Install MinGW-w64 or Visual Studio Build Tools for canary confirmation. " +
-                    "Finding is still valid based on static/ETW analysis.");
+                candidate.Notes.Add("Could not build canary DLL — no C compiler (cl.exe) available.");
                 return;
             }
 
             // Backup existing DLL if present
             string? backupPath = null;
             bool hadExistingDll = File.Exists(candidate.HijackWritablePath);
+
+            // Record initial service state
+            bool serviceWasRunning = false;
+            if (candidate.Trigger == TriggerType.Service)
+            {
+                try
+                {
+                    var queryPsi = new System.Diagnostics.ProcessStartInfo
+                    {
+                        FileName = "sc.exe",
+                        Arguments = $"query \"{candidate.TriggerIdentifier}\"",
+                        UseShellExecute = false,
+                        CreateNoWindow = true,
+                        RedirectStandardOutput = true
+                    };
+                    var queryProc = System.Diagnostics.Process.Start(queryPsi);
+                    string queryOut = queryProc?.StandardOutput.ReadToEnd() ?? "";
+                    queryProc?.WaitForExit(2000);
+                    serviceWasRunning = queryOut.Contains("RUNNING", StringComparison.OrdinalIgnoreCase);
+                }
+                catch { }
+            }
 
             if (hadExistingDll)
             {
@@ -228,7 +254,7 @@ public class CanaryEngine
                     }
                     catch
                     {
-                        candidate.Notes.Add("Warning: Could not restore original DLL from backup");
+                        candidate.Notes.Add("Warning: Could not restore original DLL from backup - file may be locked by a lingering process. Manual cleanup may be required.");
                     }
                 }
 
@@ -250,22 +276,37 @@ public class CanaryEngine
                     }
                 }
 
-                // Restart service to ensure clean state
+                // Restore service to its original state
                 if (candidate.Trigger == TriggerType.Service)
                 {
                     try
                     {
-                        var psi = new System.Diagnostics.ProcessStartInfo
+                        // Stop it first to reduce file locking during backup restoration
+                        var stopPsi = new System.Diagnostics.ProcessStartInfo
                         {
                             FileName = "sc.exe",
-                            Arguments = $"start \"{candidate.TriggerIdentifier}\"",
+                            Arguments = $"stop \"{candidate.TriggerIdentifier}\"",
                             UseShellExecute = false,
-                            CreateNoWindow = true,
-                            RedirectStandardOutput = true,
-                            RedirectStandardError = true
+                            CreateNoWindow = true
                         };
-                        var proc = System.Diagnostics.Process.Start(psi);
-                        proc?.WaitForExit(10000);
+                        var stopProc = System.Diagnostics.Process.Start(stopPsi);
+                        stopProc?.WaitForExit(2000);
+
+                        // If it was originally running, start it back up
+                        if (serviceWasRunning)
+                        {
+                            await Task.Delay(1000);
+
+                            var startPsi = new System.Diagnostics.ProcessStartInfo
+                            {
+                                FileName = "sc.exe",
+                                Arguments = $"start \"{candidate.TriggerIdentifier}\"",
+                                UseShellExecute = false,
+                                CreateNoWindow = true
+                            };
+                            var startProc = System.Diagnostics.Process.Start(startPsi);
+                            startProc?.WaitForExit(5000);
+                        }
                     }
                     catch { }
                 }
@@ -286,6 +327,9 @@ public class CanaryEngine
 
             foreach (var line in lines)
             {
+                // Safely skip the informational header line formatted by snprintf
+                if (line.StartsWith("[DllHijackHunter]", StringComparison.OrdinalIgnoreCase)) continue;
+
                 int eq = line.IndexOf('=');
                 if (eq > 0)
                 {

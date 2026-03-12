@@ -2,7 +2,7 @@
   <img src="https://img.shields.io/badge/Platform-Windows-blue?style=for-the-badge&logo=windows" />
   <img src="https://img.shields.io/badge/.NET-8.0-purple?style=for-the-badge&logo=dotnet" />
   <img src="https://img.shields.io/badge/License-MIT-green?style=for-the-badge" />
-  <img src="https://img.shields.io/badge/Version-1.3.0-orange?style=for-the-badge" />
+  <img src="https://img.shields.io/badge/Version-2.1.0-orange?style=for-the-badge" />
 </p>
 
 <h1 align="center">DLLHijackHunter</h1>
@@ -101,10 +101,10 @@ DLLHijackHunter includes dedicated UAC bypass detection:
 - **COM AutoElevation** — Scans `HKLM\SOFTWARE\Classes\CLSID` for COM objects with `Elevation\Enabled=1` (covers techniques like Fodhelper, CMSTPLUA, and similar)
 - **Side-Load Simulation** — For AutoElevate binaries that don't call `SetDllDirectory` or `SetDefaultDllDirectories`, simulates the "copy EXE to writable folder + drop DLL" attack vector
 
-### Threat Intelligence & Weaponization
+### Targeted Vulnerability Knowledge Base
 
-**DLLHijackHunter is a Threat Intelligence Scanner:**
-- **Vulnerability Knowledge Base** — Cross-references discovered imports against an offline database of known vulnerabilities (HijackLibs). Finds get massive `+15` Confidence score boosts and direct exploit URLs.
+**DLLHijackHunter leverages a targeted vulnerability mapping:**
+- **Targeted Vulnerability Knowledge Base** — Cross-references discovered imports against an offline dictionary of specific known vulnerabilities (from HijackLibs) for high-profile software like Teams, OneDrive, Discord, etc. Matches get `+15` Confidence score boosts and direct exploit URLs.
 - **Automated PATH Exploitation** — Beyond just checking for writable `%PATH%` folders, it dynamically weaponizes them by generating hijack candidates for notorious native Windows services (like `IKEEXT`, `SessionEnv`, `Spooler`) that blindly poll the PATH for missing DLLs.
 - **Expanded Phantom DLL Database** — Actively hunts for **497+ specific Phantom DLLs** across 25 categories (including .NET/CLR, Third-Party Sideloading, COM/OLE, and Virtualization).
 

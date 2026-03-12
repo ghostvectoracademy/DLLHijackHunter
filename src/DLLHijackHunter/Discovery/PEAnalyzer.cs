@@ -29,29 +29,80 @@ public class PEAnalyzer
             }
 
             // Delay-loaded imports
-            // PeNet 4.x ImportedFunctions already includes delay-loaded imports above.
-            // The raw ImageDelayImportDescriptor only has RVA fields (uint), not resolved names.
-            // We identify delay-loaded DLLs by collecting standard import DLL names from
-            // ImportedFunctions, then checking which DLLs come from the delay import table.
             try
             {
-                if (pe.ImageDelayImportDescriptor != null && pe.ImportedFunctions != null)
+                var dataDirs = pe.ImageNtHeaders?.OptionalHeader?.DataDirectory;
+                // Index 13 is Delay Import Directory
+                if (dataDirs != null && dataDirs.Length > 13 && pe.ImageSectionHeaders != null)
                 {
-                    // Collect DLL names already seen in standard import descriptors
-                    var standardDlls = new HashSet<string>(result.ImportedDlls, StringComparer.OrdinalIgnoreCase);
-
-                    // Any imported DLL not in the standard set is likely delay-loaded
-                    foreach (var func in pe.ImportedFunctions)
+                    var delayDir = dataDirs[13];
+                    if (delayDir.VirtualAddress != 0 && delayDir.Size != 0)
                     {
-                        if (!string.IsNullOrEmpty(func.DLL) && !standardDlls.Contains(func.DLL.ToLowerInvariant()))
-                            result.DelayLoadDlls.Add(func.DLL.ToLowerInvariant());
+                        // RVA to File Offset helper
+                        Func<uint, uint> RvaToOffset = rva =>
+                        {
+                            foreach (var sec in pe.ImageSectionHeaders)
+                            {
+                                if (rva >= sec.VirtualAddress && rva < sec.VirtualAddress + sec.VirtualSize)
+                                {
+                                    // Defensive check: If the RVA places us past the initialized raw data
+                                    // of the section (e.g. into BSS or unmapped padding), it has no physical file offset
+                                    uint offsetInSection = rva - sec.VirtualAddress;
+                                    if (offsetInSection >= sec.SizeOfRawData) return 0;
+
+                                    return offsetInSection + sec.PointerToRawData;
+                                }
+                            }
+                            return 0;
+                        };
+
+                        uint delayOffset = RvaToOffset(delayDir.VirtualAddress);
+                        if (delayOffset != 0)
+                        {
+                            using var stream = new System.IO.FileStream(filePath, System.IO.FileMode.Open, System.IO.FileAccess.Read, System.IO.FileShare.ReadWrite);
+                            using var reader = new System.IO.BinaryReader(stream);
+                            stream.Position = delayOffset;
+                            
+                            while (stream.Position < delayOffset + delayDir.Size && stream.Position + 32 <= stream.Length)
+                            {
+                                uint attrs = reader.ReadUInt32();
+                                uint nameRva = reader.ReadUInt32();
+                                reader.ReadUInt32(); // hmod
+                                reader.ReadUInt32(); // delayIat
+                                reader.ReadUInt32(); // delayInt
+                                reader.ReadUInt32(); // boundIat
+                                reader.ReadUInt32(); // unloadIat
+                                reader.ReadUInt32(); // timeStamp
+                                
+                                if (nameRva == 0) break; // null descriptor terminates the array
+                                
+                                uint nameOffset = RvaToOffset(nameRva);
+                                if (nameOffset != 0 && nameOffset < stream.Length)
+                                {
+                                    long savedPos = stream.Position;
+                                    stream.Position = nameOffset;
+                                    var bytes = new System.Collections.Generic.List<byte>();
+                                    byte b;
+                                    while (stream.Position < stream.Length && (b = reader.ReadByte()) != 0 && bytes.Count < 256) bytes.Add(b);
+                                    
+                                    string dllName = System.Text.Encoding.ASCII.GetString(bytes.ToArray());
+                                    if (!string.IsNullOrEmpty(dllName))
+                                    {
+                                        result.DelayLoadDlls.Add(dllName.ToLowerInvariant());
+                                        // We no longer remove from ImportedDlls to avoid data loss 
+                                        // if a DLL is listed in both standard and delay-load tables.
+                                    }
+                                    stream.Position = savedPos;
+                                }
+                            }
+                        }
                     }
                 }
             }
             catch { /* Some PEs have malformed delay imports */ }
 
             // Check for embedded manifest
-            result.HasEmbeddedManifest = CheckForManifest(pe, filePath);
+            CheckForManifest(pe, filePath, result);
 
             // Check for LoadLibrary calls (heuristic from import table)
             if (pe.ImportedFunctions != null)
@@ -155,8 +206,10 @@ public class PEAnalyzer
     /// <summary>
     /// Checks for an embedded manifest using multiple methods.
     /// </summary>
-    private static bool CheckForManifest(PeFile pe, string filePath)
+    private static void CheckForManifest(PeFile pe, string filePath, PEAnalysisResult result)
     {
+        result.HasEmbeddedManifest = false;
+        
         // Method 1: Check resource directory for RT_MANIFEST (type 24)
         try
         {
@@ -171,14 +224,15 @@ public class PEAnalyzer
                         if (entry.NameResolved != null && 
                             entry.NameResolved.Equals("RT_MANIFEST", StringComparison.OrdinalIgnoreCase))
                         {
-                            return true;
+                            result.HasEmbeddedManifest = true;
+                            // Optionally extract from resources here, but fallback to string search is fine
                         }
                         
                         // Also check numeric ID (24 = RT_MANIFEST)
                         // In PeNet 4.x, Name can be numeric string
                         if (entry.IsIdEntry && entry.ID == 24)
                         {
-                            return true;
+                            result.HasEmbeddedManifest = true;
                         }
                     }
                     catch { }
@@ -188,6 +242,8 @@ public class PEAnalyzer
         catch { }
 
         // Method 2: Search raw bytes for manifest XML signature
+        // HEURISTIC WARNING: Doing raw string matching across the PE rather than rigorous
+        // RT_MANIFEST resource parsing. This is a best-effort fallback heuristic.
         try
         {
             byte[] rawBytes;
@@ -200,11 +256,24 @@ public class PEAnalyzer
             }
 
             string content = System.Text.Encoding.UTF8.GetString(rawBytes);
+            
+            // Extract manifest bounded by <assembly> and </assembly>
+            int startIndex = content.IndexOf("<assembly", StringComparison.OrdinalIgnoreCase);
+            if (startIndex >= 0)
+            {
+                int endIndex = content.IndexOf("</assembly>", startIndex, StringComparison.OrdinalIgnoreCase);
+                if (endIndex > 0)
+                {
+                    result.ManifestContent = content.Substring(startIndex, endIndex - startIndex + 11);
+                    result.HasEmbeddedManifest = true;
+                }
+            }
+
             if (content.Contains("assembly xmlns", StringComparison.OrdinalIgnoreCase) ||
                 content.Contains("assemblyIdentity", StringComparison.OrdinalIgnoreCase) ||
                 content.Contains("trustInfo xmlns", StringComparison.OrdinalIgnoreCase))
             {
-                return true;
+                result.HasEmbeddedManifest = true;
             }
         }
         catch { }
@@ -212,9 +281,10 @@ public class PEAnalyzer
         // Method 3: Check for external manifest file
         string externalManifest = filePath + ".manifest";
         if (File.Exists(externalManifest))
-            return true;
-
-        return false;
+        {
+            result.HasEmbeddedManifest = true;
+            try { result.ManifestContent = File.ReadAllText(externalManifest); } catch { }
+        }
     }
 }
 

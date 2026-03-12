@@ -101,7 +101,29 @@ public class StaticDiscoveryEngine
             _lastContexts = contexts;
 
             // ─── Deduplicate by binary path ───
+            // Ensure we don't drop Phantom COM entries by processing them directly
+            var phantomComs = contexts.Where(c => c.TriggerType == TriggerType.COM && !File.Exists(c.BinaryPath)).ToList();
+            foreach (var pc in phantomComs)
+            {
+                candidates.Add(new HijackCandidate
+                {
+                    BinaryPath = "COM Server", // Represents the logical binary
+                    DllName = Path.GetFileName(pc.BinaryPath),
+                    DllLegitPath = null,
+                    Type = HijackType.Phantom,
+                    HijackWritablePath = pc.BinaryPath,
+                    Trigger = TriggerType.COM,
+                    TriggerIdentifier = pc.TriggerIdentifier,
+                    RunAsAccount = pc.RunAsAccount,
+                    ServiceStartType = "MANUAL",
+                    SurvivesReboot = false,
+                    DiscoverySource = "static",
+                    Notes = { $"PHANTOM COM: Missing COM server DLL ({pc.DisplayName})" }
+                });
+            }
+
             var uniqueBinaries = contexts
+                .Where(c => !(c.TriggerType == TriggerType.COM && !File.Exists(c.BinaryPath)))
                 .Where(c => File.Exists(c.BinaryPath))
                 .GroupBy(c => c.BinaryPath, StringComparer.OrdinalIgnoreCase)
                 .ToDictionary(g => g.Key, g => g.ToList(), StringComparer.OrdinalIgnoreCase);
@@ -358,7 +380,7 @@ public class StaticDiscoveryEngine
                             DiscoverySource = "static",
                             IsKnownVulnerability = true,
                             KnowledgeBaseReference = "https://hijacklibs.net/",
-                            Notes = { $"GLOBAL PATH WEAPONIZATION: Service '{target.Value}' dynamically polls for {target.Key}. Dropping it in writable PATH ({wp}) guarantees a system-wide hijack." }
+                            Notes = { $"GLOBAL PATH WEAPONIZATION: Service '{target.Value}' may dynamically poll for {target.Key}. Dropping it in writable PATH ({wp}) is a strong system-wide hijack vector." }
                         });
                         
                         candidates.Last().Notes.Add($"[HIJACKLIBS MATCH] Documented System-Wide PATH Hijack Strategy Detected! Ref: https://hijacklibs.net/");

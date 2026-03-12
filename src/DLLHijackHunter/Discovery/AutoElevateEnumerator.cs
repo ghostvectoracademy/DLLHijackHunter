@@ -43,7 +43,7 @@ public static class AutoElevateEnumerator
                     {
                         BinaryPath = file,
                         TriggerType = TriggerType.UACBypass,
-                        TriggerIdentifier = "Manifest AutoElevate",
+                        TriggerIdentifier = "Manifest AutoElevate (Heuristic)",
                         DisplayName = Path.GetFileName(file),
                         RunAsAccount = "NT AUTHORITY\\SYSTEM (via UAC Bypass)",
                         StartType = "MANUAL",
@@ -104,7 +104,7 @@ public static class AutoElevateEnumerator
             // Strip command-line arguments (LocalServer32 can have them)
             if (expanded.Contains(' ') && !File.Exists(expanded))
             {
-                expanded = expanded.Split(' ')[0].Trim('"');
+                expanded = CommandLineParser.ExtractExecutablePath(expanded);
             }
 
             if (!File.Exists(expanded)) return;
@@ -144,6 +144,8 @@ public static class AutoElevateEnumerator
             string snippet = content[start..end];
 
             // Validate it's actually an XML manifest element, not coincidental binary data
+            // HEURISTIC WARNING: This is a raw string search across the binary, not a formal
+            // RT_MANIFEST parse. It serves as a rapid, best-effort indicator.
             return snippet.Contains("<autoElevate>true</autoElevate>", StringComparison.OrdinalIgnoreCase);
         }
         catch { }

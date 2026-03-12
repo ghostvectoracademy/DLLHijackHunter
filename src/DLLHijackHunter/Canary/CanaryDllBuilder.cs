@@ -33,17 +33,13 @@ public static class CanaryDllBuilder
 
         if (!compiled)
         {
-            // Fallback: PowerShell-based canary
-            string psCanaryPath = BuildPowerShellCanary(canaryId, confirmPath);
-
             return new CanaryDllInfo
             {
                 CanaryId = canaryId,
                 DllPath = "", // empty — signals that DLL compilation failed
                 ConfirmPath = confirmPath,
                 SourcePath = sourcePath,
-                IsProxy = originalDllPath != null,
-                FallbackScript = psCanaryPath
+                IsProxy = originalDllPath != null
             };
         }
 
@@ -134,8 +130,8 @@ static void WriteConfirmation(void)
         CloseHandle(hToken);
     }
 
-    int len = sprintf(buf,
-        ""CONFIRMED=TRUE\n""
+    int len = snprintf(buf, sizeof(buf),
+        ""[DllHijackHunter] Target: %s | DLL: %s | Action: %s\n""
         ""CANARY_ID=%s\n""
         ""PROCESS=%s\n""
         ""PID=%lu\n""
@@ -143,6 +139,7 @@ static void WriteConfirmation(void)
         ""INTEGRITY=%s\n""
         ""SE_DEBUG=%s\n""
         ""TIMESTAMP=%lu\n"",
+        ""UNKNOWN"", ""UNKNOWN"", ""UNKNOWN"", // Placeholder for Target, DLL, Action
         CANARY_ID, procPath, pid, domain, username,
         integrity, hasDebug ? ""YES"" : ""NO"",
         (unsigned long)time(NULL));
@@ -179,8 +176,15 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD reason, LPVOID lpReserved)
 
                 foreach (var export in exports)
                 {
-                    sb.AppendLine($"#pragma comment(linker, \"/export:{export}=" +
-                        $"{originalForward.Replace(".dll", "")}.{export}\")");
+                    if (!string.IsNullOrEmpty(originalForward))
+                    {
+                        // WARNING (EXPERIMENTAL): Name-only export forwarding is highly brittle 
+                        // and may fail for decorated names, ordinals, or complex forwarded exports. 
+                        // This proxy generation is STRICTLY best-effort / experimental. Host 
+                        // process crashes are possible if the original DLL expects strict layouts.
+                        string forwardBaseName = System.IO.Path.GetFileNameWithoutExtension(originalForward);
+                        sb.AppendLine($"#pragma comment(linker, \"/export:{export}={forwardBaseName}.{export}\")");
+                    }
                 }
             }
         }
@@ -191,48 +195,16 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD reason, LPVOID lpReserved)
     private static bool CompileCanary(string sourcePath, string outputPath, bool is64Bit,
         string? originalDllPath)
     {
-        // Try to find a C compiler
-        string[] gccPaths =
-        {
-            @"C:\mingw64\bin\gcc.exe",
-            @"C:\msys64\mingw64\bin\gcc.exe",
-            @"C:\msys64\ucrt64\bin\gcc.exe",
-            @"C:\TDM-GCC-64\bin\gcc.exe",
-            @"C:\ProgramData\chocolatey\bin\gcc.exe",
-        };
-
-        string? compiler = gccPaths.FirstOrDefault(File.Exists);
-
-        // Try PATH
-        if (compiler == null)
-        {
-            compiler = FindInPath("gcc.exe");
-        }
-
-        // Try cl.exe
-        if (compiler == null)
-        {
-            compiler = FindInPath("cl.exe");
-        }
+        // Try cl.exe exclusively since MSVC linker pragmas (#pragma comment(linker, ...)) 
+        // are used for proxy DLL exports, which GCC does not natively parse correctly in this format.
+        string? compiler = FindInPath("cl.exe");
 
         if (compiler == null) return false;
 
         try
         {
-            string args;
-            bool isGcc = compiler.Contains("gcc", StringComparison.OrdinalIgnoreCase);
-
-            if (isGcc)
-            {
-                args = $"-shared -o \"{outputPath}\" \"{sourcePath}\" " +
-                       "-ladvapi32 -lkernel32 -Wl,--enable-stdcall-fixup -s";
-                if (!is64Bit) args = "-m32 " + args;
-            }
-            else
-            {
-                args = $"/LD /Fe:\"{outputPath}\" \"{sourcePath}\" " +
-                       "advapi32.lib kernel32.lib /link /DLL /NOLOGO";
-            }
+            string args = $"/LD /Fe:\"{outputPath}\" \"{sourcePath}\" " +
+                          "advapi32.lib kernel32.lib /link /DLL /NOLOGO";
 
             var psi = new System.Diagnostics.ProcessStartInfo
             {
@@ -258,30 +230,6 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD reason, LPVOID lpReserved)
         }
     }
 
-    private static string BuildPowerShellCanary(string canaryId, string confirmPath)
-    {
-        string psPath = Path.Combine(CanaryDir, $"canary_{canaryId}.ps1");
-        string escapedConfirm = confirmPath.Replace("'", "''");
-
-        string script = $@"
-try {{
-    New-Item -ItemType Directory -Path '{CanaryDir.Replace("'", "''")}' -Force -ErrorAction SilentlyContinue | Out-Null
-    $identity = [System.Security.Principal.WindowsIdentity]::GetCurrent()
-    $info = @""
-CONFIRMED=TRUE
-CANARY_ID={canaryId}
-USER=$($identity.Name)
-PROCESS=$([System.Diagnostics.Process]::GetCurrentProcess().MainModule.FileName)
-PID=$PID
-TIMESTAMP=$([DateTimeOffset]::UtcNow.ToUnixTimeSeconds())
-""@
-    Set-Content -Path '{escapedConfirm}' -Value $info -Force
-}} catch {{}}
-";
-
-        File.WriteAllText(psPath, script);
-        return psPath;
-    }
 
     private static string? FindInPath(string executable)
     {
@@ -354,5 +302,4 @@ public class CanaryDllInfo
     public string ConfirmPath { get; set; } = "";
     public string SourcePath { get; set; } = "";
     public bool IsProxy { get; set; }
-    public string? FallbackScript { get; set; }
 }

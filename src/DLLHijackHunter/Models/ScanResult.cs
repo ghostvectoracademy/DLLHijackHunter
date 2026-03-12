@@ -13,7 +13,7 @@ public class ScanResult
 
     // Counts
     public int TotalCandidatesDiscovered { get; set; }
-    public int EliminatedByHardGates { get; set; }
+    public int EliminatedByFilters { get; set; }
     public int SurvivedSoftGates { get; set; }
 
     // Results by tier

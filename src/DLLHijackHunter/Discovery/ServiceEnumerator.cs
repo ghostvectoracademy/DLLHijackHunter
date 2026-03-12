@@ -104,21 +104,8 @@ public static class ServiceEnumerator
         // Expand environment variables first
         string expanded = Environment.ExpandEnvironmentVariables(imagePath);
 
-        // Handle unquoted paths with arguments
-        if (expanded.Contains(' '))
-        {
-            string[] parts = expanded.Split(' ');
-            string candidate = "";
-            foreach (var part in parts)
-            {
-                candidate = string.IsNullOrEmpty(candidate) ? part : candidate + " " + part;
-                string trimmed = candidate.Trim('"');
-                if (File.Exists(trimmed)) return trimmed;
-                if (File.Exists(trimmed + ".exe")) return trimmed + ".exe";
-            }
-        }
-
-        return expanded.Split(' ')[0].Trim('"');
+        // Use the shared parser to handle quotes and arguments correctly
+        return CommandLineParser.ExtractExecutablePath(expanded);
     }
 
     private static string NormalizeAccountName(string account)

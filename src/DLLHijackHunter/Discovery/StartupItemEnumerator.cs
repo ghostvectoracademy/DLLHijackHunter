@@ -22,7 +22,7 @@ public static class StartupItemEnumerator
         // HKLM Run keys (run as SYSTEM context during startup)
         foreach (var keyPath in RunKeyPaths)
         {
-            EnumerateRunKey(Registry.LocalMachine, keyPath, "NT AUTHORITY\\SYSTEM", results);
+            EnumerateRunKey(Registry.LocalMachine, keyPath, "Interactive User", results);
         }
 
         // HKCU Run keys (run as current user)
@@ -93,7 +93,24 @@ public static class StartupItemEnumerator
                 if (ext is ".exe" or ".bat" or ".cmd" or ".vbs" or ".js" or ".lnk")
                 {
                     string binaryPath = file;
-                    // TODO: resolve .lnk shortcuts to their target
+                    if (ext == ".lnk")
+                    {
+                        try
+                        {
+                            Type? t = Type.GetTypeFromProgID("WScript.Shell");
+                            if (t != null)
+                            {
+                                object shell = Activator.CreateInstance(t)!;
+                                object shortcut = t.InvokeMember("CreateShortcut", System.Reflection.BindingFlags.InvokeMethod, null, shell, new object[] { file })!;
+                                string target = (string)shortcut.GetType().InvokeMember("TargetPath", System.Reflection.BindingFlags.GetProperty, null, shortcut, null)!;
+                                if (!string.IsNullOrEmpty(target))
+                                {
+                                    binaryPath = target;
+                                }
+                            }
+                        }
+                        catch { /* Fallback to file path if resolution fails */ }
+                    }
 
                     results.Add(new DiscoveryContext
                     {
@@ -182,7 +199,8 @@ public static class StartupItemEnumerator
         }
 
         string expanded = Environment.ExpandEnvironmentVariables(command);
-        string[] parts = expanded.Split(' ');
-        return parts[0].Trim('"');
+        // Note: Simple split on space breaks on unquoted paths with spaces
+        string path = CommandLineParser.ExtractExecutablePath(expanded);
+        return path.Trim('"');
     }
 }

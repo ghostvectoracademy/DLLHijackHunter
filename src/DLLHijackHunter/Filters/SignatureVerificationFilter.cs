@@ -47,8 +47,8 @@ public class SignatureVerificationFilter : ISoftGate
 
             candidate.IsProtectedProcess = true;
             candidate.FilterResults["Signature"] = FilterResult.Failed;
-            return (45, $"{binaryName} is a Protected Process Light (PPL). " +
-                       "Kernel enforces DLL signature verification.");
+            return (45, $"{binaryName} is in the tool's hardcoded Protected Process Light (PPL) list. " +
+                       "Kernel enforces DLL signature verification if truly PPL.");
         }
 
         // For non-PPL: even if binary calls WinVerifyTrust, DllMain runs FIRST

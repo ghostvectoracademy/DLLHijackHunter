@@ -13,7 +13,7 @@
     <AssemblyName>DLLHijackHunter</AssemblyName>
     <RootNamespace>DLLHijackHunter</RootNamespace>
     <Version>2.1.0</Version>
-    <Description>Automated DLL Hijacking Detection Tool with Zero False Positives</Description>
+    <Description>Automated DLL Hijacking Detection Tool for finding and verifying exploits</Description>
   </PropertyGroup>
 
   <ItemGroup>

@@ -143,7 +143,7 @@ public class Program
 
         // ─── Banner ───
         BannerConstants.PrintBanner();
-        AnsiConsole.MarkupLine($"[dim]v2.1.0 | {{DateTime.UtcNow:yyyy-MM-dd HH:mm:ss}} UTC[/]\n");
+        AnsiConsole.MarkupLine($"[dim]v2.1.0 | {DateTime.UtcNow:yyyy-MM-dd HH:mm:ss} UTC[/]\n");
 
         // ─── Elevation check ───
         bool isElevated;
@@ -284,7 +284,7 @@ public class Program
                 ProfileUsed = profile.Name,
                 ScanDuration = stopwatch.Elapsed,
                 TotalCandidatesDiscovered = totalDiscovered,
-                EliminatedByHardGates = eliminated
+                EliminatedByFilters = eliminated
             };
 
             await GenerateOutput(emptyResult, format, outputPath);
@@ -343,7 +343,7 @@ public class Program
             ProfileUsed = profile.Name,
             ScanDuration = stopwatch.Elapsed,
             TotalCandidatesDiscovered = totalDiscovered,
-            EliminatedByHardGates = eliminated,
+            EliminatedByFilters = eliminated,
             SurvivedSoftGates = afterFilters,
             Confirmed = candidates.Where(c => c.Tier == ConfidenceTier.Confirmed).ToList(),
             High = candidates.Where(c => c.Tier == ConfidenceTier.High).ToList(),
