@@ -49,6 +49,9 @@ public static class SearchOrderCalculator
         }
 
         // PATH directories
+        // HEURISTIC WARNING: Using the current scanning process's PATH.
+        // The actual PATH during execution heavily depends on the context (e.g. SYSTEM vs User).
+        // This is a best-effort estimation and may overstate search-order accuracy.
         var pathDirs = Environment.GetEnvironmentVariable("PATH")?.Split(';',
             StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 

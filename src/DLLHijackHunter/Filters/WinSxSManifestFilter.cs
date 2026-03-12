@@ -40,19 +40,43 @@ public class WinSxSManifestFilter : ISoftGate
             // Binary has a manifest — check if this specific DLL is SxS-managed
             bool isSxsDll = SxSManagedDlls.Contains(candidate.DllName);
 
-            if (isSxsDll)
+            if (!string.IsNullOrEmpty(pe.ManifestContent))
             {
-                // High penalty — this DLL is almost certainly loaded via SxS
+                bool explicitlyBound = pe.ManifestContent.Contains($"\"{candidate.DllName}\"", StringComparison.OrdinalIgnoreCase) ||
+                                       pe.ManifestContent.Contains($"name=\"{candidate.DllName}\"", StringComparison.OrdinalIgnoreCase);
+
+                bool assemblyBound = false;
+                if (isSxsDll)
+                {
+                    if (candidate.DllName.StartsWith("msv", StringComparison.OrdinalIgnoreCase) || candidate.DllName.StartsWith("ucrt", StringComparison.OrdinalIgnoreCase))
+                        assemblyBound = pe.ManifestContent.Contains("Microsoft.VC", StringComparison.OrdinalIgnoreCase);
+                    else if (candidate.DllName.StartsWith("comctl32", StringComparison.OrdinalIgnoreCase))
+                        assemblyBound = pe.ManifestContent.Contains("Microsoft.Windows.Common-Controls", StringComparison.OrdinalIgnoreCase);
+                    else if (candidate.DllName.StartsWith("gdiplus", StringComparison.OrdinalIgnoreCase))
+                        assemblyBound = pe.ManifestContent.Contains("Microsoft.Windows.GdiPlus", StringComparison.OrdinalIgnoreCase);
+                    else
+                        assemblyBound = true;
+                }
+
+                if (explicitlyBound || assemblyBound)
+                {
+                    candidate.ManifestCoversThisSpecificDll = true;
+                    candidate.FilterResults["WinSxS"] = FilterResult.Failed;
+                    return (40, $"Manifest (heuristically extracted/best-effort) explicitly binds {candidate.DllName} or its SxS assembly.");
+                }
+            }
+            else if (isSxsDll)
+            {
                 candidate.ManifestCoversThisSpecificDll = true;
                 candidate.FilterResults["WinSxS"] = FilterResult.Failed;
-                return (40, $"{candidate.DllName} is typically SxS-managed via manifest");
+                return (30, $"{candidate.DllName} is typically SxS-managed and binary has an unparsed manifest (heuristically detected, best-effort).");
             }
 
             // Manifest exists but doesn't specifically cover this DLL
             // Small penalty — manifest might affect search order via other mechanisms
             candidate.ManifestCoversThisSpecificDll = false;
             candidate.FilterResults["WinSxS"] = FilterResult.Passed;
-            return (5, "Binary has manifest but it doesn't cover this specific DLL");
+            return (5, "Binary has manifest (heuristically detected, best-effort) but it doesn't cover this specific DLL");
         }
         catch
         {

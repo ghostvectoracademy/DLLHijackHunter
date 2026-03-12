@@ -82,9 +82,8 @@ public class LoadLibraryExFlagsFilter : ISoftGate
                 // without disassembly. Apply small penalty since we're uncertain.
                 candidate.LoadLibAnalysisConfidence = AnalysisConfidence.IndirectCall;
                 candidate.FilterResults["LoadLibFlags"] = FilterResult.Failed;
-                return (10, "Binary imports LoadLibraryEx — flags unknown without " +
-                           "disassembly. May use LOAD_LIBRARY_SEARCH_SYSTEM32 " +
-                           "for some DLL loads.");
+                return (5, "Binary imports LoadLibraryEx — flags unknown without " +
+                           "disassembly (heuristic assumption only).");
             }
 
             // Check 5: Binary only uses LoadLibrary (no Ex variant)

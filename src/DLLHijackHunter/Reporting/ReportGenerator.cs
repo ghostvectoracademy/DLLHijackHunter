@@ -28,7 +28,7 @@ public static class ReportGenerator
         summaryTable.AddRow("Profile", result.ProfileUsed);
         summaryTable.AddRow("Duration", result.ScanDuration.ToString(@"mm\:ss"));
         summaryTable.AddRow("Total Candidates", result.TotalCandidatesDiscovered.ToString());
-        summaryTable.AddRow("Eliminated (Hard Gates)", result.EliminatedByHardGates.ToString());
+        summaryTable.AddRow("Eliminated (Filters)", result.EliminatedByFilters.ToString());
         summaryTable.AddRow("[green bold]Total Findings[/]", $"[green bold]{result.TotalFindings}[/]");
 
         AnsiConsole.Write(summaryTable);
