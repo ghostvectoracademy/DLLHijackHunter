@@ -23,10 +23,18 @@ public class ErrorHandledLoadFilter : ISoftGate
             return (0, null);
         }
 
-        // For delay-loaded DLLs, the load is deferred and may be error-handled
-        // Small penalty since DllMain still runs
+        // Only penalize if the binary uses dynamic loading (LoadLibrary),
+        // where error handling could swallow the load. Standard IAT imports
+        // are not error-handled and fail fatally.
+        if (candidate.LoadLibAnalysisConfidence != Models.AnalysisConfidence.Unknown &&
+            candidate.LoadLibAnalysisConfidence != Models.AnalysisConfidence.Certain)
+        {
+            candidate.FilterResults["ErrorHandled"] = FilterResult.Passed;
+            return (5, "Binary uses dynamic loading — DllMain still executes before " +
+                       "any error handling. Code execution achieved regardless.");
+        }
+
         candidate.FilterResults["ErrorHandled"] = FilterResult.Passed;
-        return (5, "DllMain executes before any error handling. " +
-                   "Code execution achieved regardless.");
+        return (0, null);
     }
 }

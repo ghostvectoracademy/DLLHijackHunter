@@ -1,5 +1,6 @@
 using DLLHijackHunter.Models;
 using DLLHijackHunter.Native;
+using Microsoft.Win32;
 using Spectre.Console;
 using System.Reflection;
 using System.Text.Json;
@@ -11,6 +12,26 @@ public class StaticDiscoveryEngine
     private readonly ScanProfile _profile;
 
     private static readonly Lazy<HashSet<string>> PhantomDllDatabase = new(LoadPhantomDlls);
+    private static readonly Lazy<HashSet<string>> KnownDllsCache = new(LoadKnownDlls);
+
+    private static HashSet<string> LoadKnownDlls()
+    {
+        var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        try
+        {
+            using var key = Registry.LocalMachine.OpenSubKey(
+                @"SYSTEM\CurrentControlSet\Control\Session Manager\KnownDLLs");
+            if (key == null) return set;
+            foreach (var valueName in key.GetValueNames())
+            {
+                var value = key.GetValue(valueName) as string;
+                if (!string.IsNullOrEmpty(value))
+                    set.Add(value.ToLowerInvariant());
+            }
+        }
+        catch { }
+        return set;
+    }
 
     private static HashSet<string> LoadPhantomDlls()
     {
@@ -255,8 +276,12 @@ public class StaticDiscoveryEngine
         // If this is a UACBypass binary and it doesn't protect against CWD loads,
         // an attacker can copy the EXE to a writable folder (e.g. %TEMP%), place
         // a malicious DLL next to it, and execute for a silent UAC bypass.
+        // Skip KnownDLLs and System32-resident DLLs — these cannot be sideloaded.
         var uacCtx = contexts.FirstOrDefault(c => c.TriggerType == TriggerType.UACBypass);
-        if (uacCtx != null && !peResult.CallsSetDllDirectory && !peResult.CallsSetDefaultDllDirectories)
+        bool isSideloadBlocked = KnownDllsCache.Value.Contains(dllName.ToLowerInvariant()) ||
+            File.Exists(Path.Combine(Environment.SystemDirectory, dllName));
+        if (uacCtx != null && !isSideloadBlocked &&
+            !peResult.CallsSetDllDirectory && !peResult.CallsSetDefaultDllDirectories)
         {
             string tempTarget = Path.Combine(Path.GetTempPath(), dllName);
             candidates.Add(new HijackCandidate
@@ -415,9 +440,12 @@ public class StaticDiscoveryEngine
 
         if (isDirectory)
         {
-            // Directory - match anything under it
+            // Directory - match anything under it (ensure trailing separator to avoid partial matches)
+            string dirPrefix = expandedTarget.EndsWith(Path.DirectorySeparatorChar)
+                ? expandedTarget : expandedTarget + Path.DirectorySeparatorChar;
             var dirMatches = contexts.Where(c =>
-                c.BinaryPath.StartsWith(expandedTarget, StringComparison.OrdinalIgnoreCase)
+                c.BinaryPath.StartsWith(dirPrefix, StringComparison.OrdinalIgnoreCase) ||
+                Path.GetDirectoryName(c.BinaryPath)?.Equals(expandedTarget, StringComparison.OrdinalIgnoreCase) == true
             ).ToList();
 
             if (dirMatches.Any())

@@ -64,12 +64,20 @@ public class PrivilegeDeltaFilter : ISoftGate
     {
         string upper = runAsAccount.ToUpperInvariant();
 
-        if (upper.Contains("SYSTEM") || upper.Contains("LOCALSYSTEM"))
+        // Exact known service accounts
+        if (upper is "NT AUTHORITY\\SYSTEM" or "NT AUTHORITY\\\\SYSTEM" or "LOCALSYSTEM")
             return 4;
-        if (upper.Contains("LOCAL SERVICE") || upper.Contains("NETWORK SERVICE") ||
-            upper.Contains("LOCALSERVICE") || upper.Contains("NETWORKSERVICE"))
+        if (upper is "NT AUTHORITY\\LOCAL SERVICE" or "NT AUTHORITY\\\\LOCAL SERVICE" or
+            "NT AUTHORITY\\NETWORK SERVICE" or "NT AUTHORITY\\\\NETWORK SERVICE")
             return 3;
-        if (upper.Contains("ADMINISTRATOR") || upper.Contains("ADMIN"))
+
+        // UAC elevated context (High integrity, same user)
+        if (upper.StartsWith("HIGH_INTEGRITY"))
+            return 3;
+
+        // Built-in admin groups (exact prefix, not substring)
+        if (upper.EndsWith("\\ADMINISTRATOR") || upper.EndsWith("\\\\ADMINISTRATOR") ||
+            upper is "BUILTIN\\ADMINISTRATORS" or "BUILTIN\\\\ADMINISTRATORS")
             return 3;
 
         return 2; // standard user

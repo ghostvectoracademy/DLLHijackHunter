@@ -17,10 +17,11 @@ public static class StartupItemEnumerator
     {
         var results = new List<DiscoveryContext>();
 
-        // HKLM Run keys (run as SYSTEM context during startup)
+        // HKLM Run keys run as the interactively logged-on user (NOT SYSTEM)
         foreach (var keyPath in RunKeyPaths)
         {
-            EnumerateRunKey(Registry.LocalMachine, keyPath, "Interactive User", results);
+            EnumerateRunKey(Registry.LocalMachine, keyPath,
+                Native.TokenHelper.GetCurrentUsername(), results);
         }
 
         // HKCU Run keys (run as current user)
@@ -35,9 +36,10 @@ public static class StartupItemEnumerator
             Environment.GetFolderPath(Environment.SpecialFolder.Startup),
             Native.TokenHelper.GetCurrentUsername(), results);
 
+        // Common Startup folder runs programs as each user who logs on (NOT SYSTEM)
         EnumerateStartupFolder(
             Environment.GetFolderPath(Environment.SpecialFolder.CommonStartup),
-            "NT AUTHORITY\\SYSTEM", results);
+            Native.TokenHelper.GetCurrentUsername(), results);
 
         // AppInit_DLLs
         EnumerateAppInitDlls(results);
@@ -137,15 +139,23 @@ public static class StartupItemEnumerator
             if (loadAppInit == null || (int)loadAppInit == 0) return;
 
             var appInitDlls = key.GetValue("AppInit_DLLs") as string;
-            if (!string.IsNullOrEmpty(appInitDlls))
+            if (string.IsNullOrEmpty(appInitDlls)) return;
+
+            // AppInit_DLLs is a space-delimited or comma-delimited list of DLL paths.
+            // Each DLL is injected into every user-mode process that loads user32.dll.
+            var dllPaths = appInitDlls.Split(new[] { ' ', ',' },
+                StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+            foreach (var rawDllPath in dllPaths)
             {
-                // AppInit_DLLs are loaded into every user-mode process
+                string dllPath = Environment.ExpandEnvironmentVariables(rawDllPath.Trim('"'));
+
                 results.Add(new DiscoveryContext
                 {
-                    BinaryPath = appInitDlls,
+                    BinaryPath = dllPath,
                     TriggerType = TriggerType.Startup,
                     TriggerIdentifier = "AppInit_DLLs",
-                    DisplayName = "AppInit_DLLs: " + appInitDlls,
+                    DisplayName = "AppInit_DLLs: " + Path.GetFileName(dllPath),
                     RunAsAccount = "ALL_PROCESSES",
                     IsAutoStart = true
                 });
