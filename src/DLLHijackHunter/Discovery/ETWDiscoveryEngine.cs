@@ -218,7 +218,10 @@ public class ETWDiscoveryEngine
                         HijackWritablePath = Path.Combine(actualDir, dllName),
                         RunAsAccount = ctx.TokenUser,
                         DiscoverySource = "etw",
-                        Notes = { $"DLL loaded from writable directory at runtime (PID {data.ProcessID})" }
+                        Notes = { 
+                            $"DLL loaded from writable directory at runtime (PID {data.ProcessID})",
+                            "[HEURISTIC] ETW cannot guarantee load priority. Verify search-order precedence manually or via Canary."
+                        }
                     });
                 }
             }
@@ -265,7 +268,8 @@ public class ETWDiscoveryEngine
                             Notes =
                             {
                                 $"Phantom DLL detected via ETW (PID {data.ProcessID})",
-                                $"Process probed {fileName} but file does not exist"
+                                $"Process probed {fileName} but file does not exist",
+                                "[HEURISTIC] ETW cannot guarantee load priority. Verify search-order precedence manually or via Canary."
                             }
                         });
                     }

@@ -21,7 +21,7 @@ public static class StartupItemEnumerator
         foreach (var keyPath in RunKeyPaths)
         {
             EnumerateRunKey(Registry.LocalMachine, keyPath,
-                Native.TokenHelper.GetCurrentUsername(), results);
+                "Interactive User", results);
         }
 
         // HKCU Run keys (run as current user)
@@ -39,7 +39,7 @@ public static class StartupItemEnumerator
         // Common Startup folder runs programs as each user who logs on (NOT SYSTEM)
         EnumerateStartupFolder(
             Environment.GetFolderPath(Environment.SpecialFolder.CommonStartup),
-            Native.TokenHelper.GetCurrentUsername(), results);
+            "Interactive User", results);
 
         // AppInit_DLLs
         EnumerateAppInitDlls(results);

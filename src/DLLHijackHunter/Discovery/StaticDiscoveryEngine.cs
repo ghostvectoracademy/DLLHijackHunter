@@ -143,8 +143,35 @@ public class StaticDiscoveryEngine
                 });
             }
 
+            // ═══ NEW: Process AppInit_DLLs directly as targets ═══
+            var appInitDlls = contexts.Where(c => c.TriggerIdentifier == "AppInit_DLLs").ToList();
+            foreach (var appInit in appInitDlls)
+            {
+                string? dir = Path.GetDirectoryName(appInit.BinaryPath);
+                if (dir != null && Directory.Exists(dir) && 
+                    AclChecker.IsDirectoryWritableByCurrentUser(dir))
+                {
+                    candidates.Add(new HijackCandidate
+                    {
+                        BinaryPath = "User32.dll (AppInit Injection)", // Logical host
+                        DllName = Path.GetFileName(appInit.BinaryPath),
+                        DllLegitPath = File.Exists(appInit.BinaryPath) ? appInit.BinaryPath : null,
+                        Type = HijackType.AppInitDll,
+                        HijackWritablePath = appInit.BinaryPath,
+                        Trigger = TriggerType.Startup,
+                        TriggerIdentifier = appInit.TriggerIdentifier,
+                        RunAsAccount = appInit.RunAsAccount,
+                        ServiceStartType = "AUTO_START",
+                        SurvivesReboot = true,
+                        DiscoverySource = "static",
+                        Notes = { "AppInit_DLLs registry entry points to a writable DLL path. Modifying this DLL achieves global injection." }
+                    });
+                }
+            }
+
             var uniqueBinaries = contexts
                 .Where(c => !(c.TriggerType == TriggerType.COM && !File.Exists(c.BinaryPath)))
+                .Where(c => c.TriggerIdentifier != "AppInit_DLLs") // Exclude from PE analysis
                 .Where(c => File.Exists(c.BinaryPath))
                 .GroupBy(c => c.BinaryPath, StringComparer.OrdinalIgnoreCase)
                 .ToDictionary(g => g.Key, g => g.ToList(), StringComparer.OrdinalIgnoreCase);
