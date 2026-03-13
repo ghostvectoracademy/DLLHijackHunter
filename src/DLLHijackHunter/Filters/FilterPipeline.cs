@@ -115,21 +115,8 @@ public class FilterPipeline
                     "same-privilege candidates (profile setting)[/]");
         }
 
-        // ═══ FILTER BY TARGET (if specified) ═══
-        if (!string.IsNullOrEmpty(_profile.TargetPath))
-        {
-            string expandedTarget = Environment.ExpandEnvironmentVariables(_profile.TargetPath);
-            int beforeTarget = remaining.Count;
-
-            remaining = remaining.Where(c =>
-                c.BinaryPath.Contains(expandedTarget, StringComparison.OrdinalIgnoreCase) ||
-                c.BinaryPath.Equals(expandedTarget, StringComparison.OrdinalIgnoreCase) ||
-                Path.GetDirectoryName(c.BinaryPath)?.StartsWith(expandedTarget, StringComparison.OrdinalIgnoreCase) == true
-            ).ToList();
-
-            if (remaining.Count < beforeTarget)
-                AnsiConsole.MarkupLine($"  [yellow]Target filter: {beforeTarget} → {remaining.Count}[/]");
-        }
+        // NOTE: Target filtering is handled upstream in StaticDiscoveryEngine.FilterByTarget()
+        // No redundant target filter here — avoids loose Contains() matching issues.
 
         AnsiConsole.MarkupLine(
             $"[bold green]Pipeline complete: {initialCount} → {remaining.Count} candidates[/]");

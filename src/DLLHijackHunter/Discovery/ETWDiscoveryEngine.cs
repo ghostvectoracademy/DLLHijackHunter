@@ -188,12 +188,26 @@ public class ETWDiscoveryEngine
 
                 string dllName = Path.GetFileName(fileName);
                 string? actualDir = Path.GetDirectoryName(fileName);
+                string? binaryDir = Path.GetDirectoryName(ctx.BinaryPath);
 
-                if (actualDir != null &&
-                    !actualDir.StartsWith(Environment.SystemDirectory, StringComparison.OrdinalIgnoreCase) &&
-                    !actualDir.StartsWith(Environment.GetFolderPath(Environment.SpecialFolder.Windows),
-                        StringComparison.OrdinalIgnoreCase) &&
-                    AclChecker.IsDirectoryWritableByCurrentUser(actualDir))
+                if (actualDir == null) return;
+
+                // Skip DLLs loaded from the binary's own directory — this is the
+                // expected/intended load location, not a search-order hijack.
+                if (binaryDir != null &&
+                    actualDir.Equals(binaryDir, StringComparison.OrdinalIgnoreCase))
+                    return;
+
+                // Skip system directories (use normalized path comparison)
+                string sysDir = Environment.SystemDirectory;
+                string winDir = Environment.GetFolderPath(Environment.SpecialFolder.Windows);
+                if (actualDir.Equals(sysDir, StringComparison.OrdinalIgnoreCase) ||
+                    actualDir.Equals(winDir, StringComparison.OrdinalIgnoreCase) ||
+                    actualDir.StartsWith(sysDir + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) ||
+                    actualDir.StartsWith(winDir + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
+                    return;
+
+                if (AclChecker.IsDirectoryWritableByCurrentUser(actualDir))
                 {
                     _candidates.Add(new HijackCandidate
                     {

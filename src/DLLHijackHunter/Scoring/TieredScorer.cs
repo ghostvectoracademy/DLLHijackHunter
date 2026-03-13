@@ -79,10 +79,12 @@ public class TieredScorer
         string runAs = c.ConfirmedPrivilege ?? c.RunAsAccount;
         string upper = runAs.ToUpperInvariant();
 
-        if (upper.Contains("SYSTEM"))
+        if (upper is "NT AUTHORITY\\SYSTEM" or "NT AUTHORITY\\\\SYSTEM" or "LOCALSYSTEM")
             impact += 4.0;
-        else if (upper.Contains("ADMINISTRATOR") || upper.Contains("ADMIN") ||
-                 upper.Contains("LOCAL SERVICE") || upper.Contains("NETWORK SERVICE"))
+        else if (upper.StartsWith("HIGH_INTEGRITY") ||
+                 upper.EndsWith("\\ADMINISTRATOR") || upper.EndsWith("\\\\ADMINISTRATOR") ||
+                 upper is "NT AUTHORITY\\LOCAL SERVICE" or "NT AUTHORITY\\\\LOCAL SERVICE" or
+                 "NT AUTHORITY\\NETWORK SERVICE" or "NT AUTHORITY\\\\NETWORK SERVICE")
             impact += 3.0;
         else
             impact += 1.0;

@@ -14,8 +14,9 @@ public class AttackChainCorrelator
         var uacBypasses = findings.Where(c => c.Trigger == TriggerType.UACBypass).ToList();
         
         var systemServices = findings.Where(c => 
-            (c.RunAsAccount.Contains("SYSTEM", StringComparison.OrdinalIgnoreCase) || 
-             c.ConfirmedPrivilege?.Contains("SYSTEM", StringComparison.OrdinalIgnoreCase) == true) &&
+            (c.RunAsAccount.Equals("NT AUTHORITY\\SYSTEM", StringComparison.OrdinalIgnoreCase) || 
+             c.RunAsAccount.Equals("LocalSystem", StringComparison.OrdinalIgnoreCase) ||
+             c.ConfirmedPrivilege?.Equals("NT AUTHORITY\\SYSTEM", StringComparison.OrdinalIgnoreCase) == true) &&
             c.Trigger != TriggerType.UACBypass).ToList();
 
         // 2. Build "The Direct Path" (User -> SYSTEM)

@@ -45,7 +45,7 @@ public static class AutoElevateEnumerator
                         TriggerType = TriggerType.UACBypass,
                         TriggerIdentifier = "Manifest AutoElevate (Heuristic)",
                         DisplayName = Path.GetFileName(file),
-                        RunAsAccount = "NT AUTHORITY\\SYSTEM (via UAC Bypass)",
+                        RunAsAccount = "HIGH_INTEGRITY\\CurrentUser",
                         StartType = "MANUAL",
                         IsAutoStart = false
                     });

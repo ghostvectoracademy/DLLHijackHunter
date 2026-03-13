@@ -9,7 +9,6 @@ release/
 publish/
 build/
 *.exe
-
-# Build artifacts and temp test files
 test_penet/
+tests/
 hijackhunter_*.json
