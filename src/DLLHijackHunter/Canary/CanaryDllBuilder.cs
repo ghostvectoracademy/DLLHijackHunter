@@ -287,6 +287,14 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD reason, LPVOID lpReserved)
                 {
                     try { File.Delete(file); } catch { }
                 }
+                // Clean up MSVC compilation artifacts
+                foreach (var ext in new[] { "*.obj", "*.lib", "*.exp", "*.pdb" })
+                {
+                    foreach (var file in Directory.GetFiles(CanaryDir, ext))
+                    {
+                        try { File.Delete(file); } catch { }
+                    }
+                }
             }
         }
         catch { }

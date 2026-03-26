@@ -26,4 +26,7 @@ public class ScanResult
 
     public int TotalFindings =>
         Confirmed.Count + High.Count + Medium.Count + Low.Count;
+
+    // Attack chain analysis
+    public List<AttackChain> AttackChains { get; set; } = new();
 }

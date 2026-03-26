@@ -89,6 +89,7 @@ public class ETWDiscoveryEngine
             session.Stop();
             AnsiConsole.MarkupLine($"  [green]ETW captured {_candidates.Count} candidates, " +
                 $"{_failedLookups.Count} failed DLL lookups[/]");
+            ScanLogger.Debug($"ETW results: {_candidates.Count} candidates, {_failedLookups.Count} failed DLL lookups");
         }
         catch (Exception ex)
         {

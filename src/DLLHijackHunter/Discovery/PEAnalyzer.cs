@@ -304,6 +304,7 @@ public class PEAnalysisResult
     public bool ForceIntegrity { get; set; }
     public string? AnalysisError { get; set; }
 
+    private HashSet<string>? _allImportedDlls;
     public HashSet<string> AllImportedDlls =>
-        new(ImportedDlls.Concat(DelayLoadDlls), StringComparer.OrdinalIgnoreCase);
+        _allImportedDlls ??= new(ImportedDlls.Concat(DelayLoadDlls), StringComparer.OrdinalIgnoreCase);
 }

@@ -92,6 +92,9 @@ public static class ServiceEnumerator
     {
         imagePath = imagePath.Trim();
 
+        // Expand environment variables first (before quote stripping)
+        imagePath = Environment.ExpandEnvironmentVariables(imagePath);
+
         // Handle quoted paths
         if (imagePath.StartsWith('"'))
         {
@@ -99,11 +102,8 @@ public static class ServiceEnumerator
             if (end > 0) return imagePath[1..end];
         }
 
-        // Expand environment variables first
-        string expanded = Environment.ExpandEnvironmentVariables(imagePath);
-
         // Use the shared parser to handle quotes and arguments correctly
-        return CommandLineParser.ExtractExecutablePath(expanded);
+        return CommandLineParser.ExtractExecutablePath(imagePath);
     }
 
     private static string NormalizeAccountName(string account)

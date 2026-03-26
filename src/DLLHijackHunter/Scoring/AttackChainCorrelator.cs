@@ -8,7 +8,9 @@ public class AttackChainCorrelator
     public List<AttackChain> BuildChains(List<HijackCandidate> findings)
     {
         var chains = new List<AttackChain>();
-        string currentUser = WindowsIdentity.GetCurrent().Name;
+        string currentUser;
+        try { currentUser = WindowsIdentity.GetCurrent().Name; }
+        catch { currentUser = "Unknown"; }
 
         // 1. Categorize findings
         var uacBypasses = findings.Where(c => c.Trigger == TriggerType.UACBypass).ToList();

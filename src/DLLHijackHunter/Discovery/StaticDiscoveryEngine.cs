@@ -12,26 +12,8 @@ public class StaticDiscoveryEngine
     private readonly ScanProfile _profile;
 
     private static readonly Lazy<HashSet<string>> PhantomDllDatabase = new(LoadPhantomDlls);
-    private static readonly Lazy<HashSet<string>> KnownDllsCache = new(LoadKnownDlls);
-
-    private static HashSet<string> LoadKnownDlls()
-    {
-        var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        try
-        {
-            using var key = Registry.LocalMachine.OpenSubKey(
-                @"SYSTEM\CurrentControlSet\Control\Session Manager\KnownDLLs");
-            if (key == null) return set;
-            foreach (var valueName in key.GetValueNames())
-            {
-                var value = key.GetValue(valueName) as string;
-                if (!string.IsNullOrEmpty(value))
-                    set.Add(value.ToLowerInvariant());
-            }
-        }
-        catch { }
-        return set;
-    }
+    private static readonly Lazy<HashSet<string>> KnownDllsCache = new(() =>
+        Filters.KnownDllsFilter.LoadKnownDlls(@"SYSTEM\CurrentControlSet\Control\Session Manager\KnownDLLs"));
 
     private static HashSet<string> LoadPhantomDlls()
     {
@@ -94,6 +76,7 @@ public class StaticDiscoveryEngine
             }
 
             AnsiConsole.MarkupLine($"  [green]Found {contexts.Count} execution contexts[/]");
+            ScanLogger.Debug($"Static discovery: {contexts.Count} execution contexts found");
 
             if (_profile.TriggerAutoElevate)
             {
@@ -177,6 +160,7 @@ public class StaticDiscoveryEngine
                 .ToDictionary(g => g.Key, g => g.ToList(), StringComparer.OrdinalIgnoreCase);
 
             AnsiConsole.MarkupLine($"  [green]{uniqueBinaries.Count} unique binaries to analyze[/]");
+            ScanLogger.Debug($"Static discovery: {uniqueBinaries.Count} unique binaries to analyze");
 
             if (uniqueBinaries.Count == 0)
             {
@@ -216,6 +200,7 @@ public class StaticDiscoveryEngine
             CheckWritablePathDirectories(candidates, contexts);
 
             AnsiConsole.MarkupLine($"  [green]Generated {candidates.Count} candidates[/]");
+            ScanLogger.Debug($"Static discovery complete: {candidates.Count} total candidates generated");
         });
 
         return candidates;
