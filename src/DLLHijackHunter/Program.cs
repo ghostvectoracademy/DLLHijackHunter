@@ -41,7 +41,7 @@ public class Program
 
         var profileOption = new Option<string>(
             aliases: new[] { "--profile", "-p" },
-            description: "Scan profile: aggressive, strict, safe, redteam",
+            description: "Scan profile: aggressive, strict, safe, redteam, uac-bypass",
             getDefaultValue: () => "aggressive");
 
         var outputOption = new Option<string?>(
@@ -57,6 +57,12 @@ public class Program
             aliases: new[] { "--min-confidence" },
             description: "Minimum confidence threshold (0-100)",
             getDefaultValue: () => 20);
+        minConfidenceOption.AddValidator(result =>
+        {
+            var value = result.GetValueForOption(minConfidenceOption);
+            if (value < 0 || value > 100)
+                result.ErrorMessage = "Minimum confidence must be between 0 and 100.";
+        });
 
         var noCanaryOption = new Option<bool>(
             aliases: new[] { "--no-canary" },
@@ -330,9 +336,8 @@ public class Program
                 .ToList();
         }
 
-        stopwatch.Stop();
-
-        // Build scan result
+        // ═══ BUILD ATTACK CHAINS ═══
+        var correlator = new AttackChainCorrelator();
         var scanResult = new ScanResult
         {
             ScanDate = DateTime.UtcNow,
@@ -348,6 +353,7 @@ public class Program
             Medium = candidates.Where(c => c.Tier == ConfidenceTier.Medium).ToList(),
             Low = candidates.Where(c => c.Tier == ConfidenceTier.Low).ToList()
         };
+        scanResult.AttackChains = correlator.BuildChains(scanResult.AllFindings);
 
         await GenerateOutput(scanResult, format, outputPath);
 
@@ -378,10 +384,8 @@ public class Program
             // 1. Generate normal report
             ReportGenerator.GenerateConsoleReport(scanResult);
             
-            // 2. ═══ GENERATE ATTACK CHAINS ═══
-            var correlator = new AttackChainCorrelator();
-            var chains = correlator.BuildChains(scanResult.AllFindings);
-            ReportGenerator.RenderAttackChains(chains);
+            // 2. ═══ RENDER ATTACK CHAINS ═══
+            ReportGenerator.RenderAttackChains(scanResult.AttackChains);
 
             // 3. Save JSON backup
             if (scanResult.TotalFindings > 0) 

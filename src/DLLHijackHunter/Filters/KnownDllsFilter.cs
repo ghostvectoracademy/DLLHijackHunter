@@ -49,7 +49,7 @@ public class KnownDllsFilter : IHardGate
         }).ToList();
     }
 
-    private static HashSet<string> LoadKnownDlls(string registryPath)
+    public static HashSet<string> LoadKnownDlls(string registryPath)
     {
         var result = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 

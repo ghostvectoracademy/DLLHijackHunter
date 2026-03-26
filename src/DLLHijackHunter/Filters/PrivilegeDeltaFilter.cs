@@ -26,7 +26,8 @@ public class PrivilegeDeltaFilter : ISoftGate
         if (targetPrivLevel > _currentPrivLevel)
         {
             // Privilege escalation — no penalty
-            candidate.UseCases.Add("Privilege Escalation");
+            if (!candidate.UseCases.Contains("Privilege Escalation"))
+                candidate.UseCases.Add("Privilege Escalation");
             candidate.FilterResults["PrivDelta"] = FilterResult.Passed;
             return (0, null);
         }
@@ -34,8 +35,10 @@ public class PrivilegeDeltaFilter : ISoftGate
         if (targetPrivLevel == _currentPrivLevel)
         {
             // Same privilege — still useful for persistence and evasion
-            candidate.UseCases.Add("Persistence");
-            candidate.UseCases.Add("Defense Evasion");
+            if (!candidate.UseCases.Contains("Persistence"))
+                candidate.UseCases.Add("Persistence");
+            if (!candidate.UseCases.Contains("Defense Evasion"))
+                candidate.UseCases.Add("Defense Evasion");
 
             // If target is a signed binary, it's great for EDR bypass
             try
@@ -43,8 +46,10 @@ public class PrivilegeDeltaFilter : ISoftGate
                 var pe = Discovery.PEAnalyzer.Analyze(candidate.BinaryPath);
                 if (pe.IsSigned)
                 {
-                    candidate.UseCases.Add("EDR Bypass (signed binary injection)");
-                    candidate.UseCases.Add("Application Whitelisting Bypass");
+                    if (!candidate.UseCases.Contains("EDR Bypass (signed binary injection)"))
+                        candidate.UseCases.Add("EDR Bypass (signed binary injection)");
+                    if (!candidate.UseCases.Contains("Application Whitelisting Bypass"))
+                        candidate.UseCases.Add("Application Whitelisting Bypass");
                 }
             }
             catch { }

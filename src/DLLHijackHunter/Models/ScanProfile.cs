@@ -1,3 +1,5 @@
+using Spectre.Console;
+
 namespace DLLHijackHunter.Models;
 
 public class ScanProfile
@@ -94,13 +96,27 @@ public class ScanProfile
         TriggerAutoElevate = true
     };
 
-    public static ScanProfile FromName(string name) => name.ToLower() switch
+    public static ScanProfile FromName(string name)
     {
-        "aggressive" => Aggressive,
-        "strict" => Strict,
-        "safe" => Safe,
-        "redteam" => RedTeam,
-        "uac-bypass" => UACBypass,
-        _ => new ScanProfile { Name = name }
-    };
+        var knownProfiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "aggressive", "strict", "safe", "redteam", "uac-bypass"
+        };
+
+        if (!knownProfiles.Contains(name))
+        {
+            AnsiConsole.MarkupLine($"[yellow]⚠ Unknown profile '{Markup.Escape(name)}'. " +
+                $"Known profiles: {string.Join(", ", knownProfiles)}. Using defaults.[/]");
+        }
+
+        return name.ToLower() switch
+        {
+            "aggressive" => Aggressive,
+            "strict" => Strict,
+            "safe" => Safe,
+            "redteam" => RedTeam,
+            "uac-bypass" => UACBypass,
+            _ => new ScanProfile { Name = name }
+        };
+    }
 }

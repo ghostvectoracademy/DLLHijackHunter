@@ -71,6 +71,7 @@ public class CanaryEngine
 
         AnsiConsole.MarkupLine($"  [green]Confirmed: {confirmed}[/] | " +
             $"[red]Failed: {failed}[/] | [yellow]Skipped: {skipped}[/]");
+        ScanLogger.Debug($"Canary results: {confirmed} confirmed, {failed} failed, {skipped} skipped");
 
         // Cleanup all canary artifacts
         CanaryDllBuilder.CleanupAll();

@@ -22,11 +22,18 @@ public class WinSxSManifestFilter : ISoftGate
         "atl100.dll", "atl110.dll", "atl120.dll", "atl140.dll"
     };
 
+    // Cache PE analysis results to avoid re-parsing the same binary
+    private readonly Dictionary<string, PEAnalysisResult> _cache = new(StringComparer.OrdinalIgnoreCase);
+
     public (double penalty, string? reason) Evaluate(HijackCandidate candidate)
     {
         try
         {
-            var pe = PEAnalyzer.Analyze(candidate.BinaryPath);
+            if (!_cache.TryGetValue(candidate.BinaryPath, out var pe))
+            {
+                pe = PEAnalyzer.Analyze(candidate.BinaryPath);
+                _cache[candidate.BinaryPath] = pe;
+            }
 
             if (!pe.HasEmbeddedManifest)
             {

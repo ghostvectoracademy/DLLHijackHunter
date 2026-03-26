@@ -50,6 +50,7 @@ public class FilterPipeline
             string color = removed > 0 ? "red" : "green";
             AnsiConsole.MarkupLine($"  [{color}]  {gate.Name}: {before} → {remaining.Count} " +
                 $"(removed {removed}, {pct:F0}%)[/]");
+            ScanLogger.Debug($"Hard gate '{gate.Name}': {before} → {remaining.Count} (removed {removed}, {pct:F0}%)");
         }
 
         int afterHardGates = remaining.Count;
@@ -120,6 +121,7 @@ public class FilterPipeline
 
         AnsiConsole.MarkupLine(
             $"[bold green]Pipeline complete: {initialCount} → {remaining.Count} candidates[/]");
+        ScanLogger.Debug($"Filter pipeline complete: {initialCount} → {remaining.Count} candidates");
 
         return remaining;
     }

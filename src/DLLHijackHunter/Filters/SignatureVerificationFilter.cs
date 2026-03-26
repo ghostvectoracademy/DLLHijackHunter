@@ -1,4 +1,5 @@
 using DLLHijackHunter.Models;
+using DLLHijackHunter.Discovery;
 using System.Diagnostics;
 
 namespace DLLHijackHunter.Filters;
@@ -50,6 +51,20 @@ public class SignatureVerificationFilter : ISoftGate
         }
 
         // For non-PPL: even if binary calls WinVerifyTrust, DllMain runs FIRST
+        // But check for FORCE_INTEGRITY DllCharacteristic
+        try
+        {
+            var pe = PEAnalyzer.Analyze(candidate.BinaryPath);
+            if (pe.ForceIntegrity)
+            {
+                candidate.IsProtectedProcess = true;
+                candidate.FilterResults["Signature"] = FilterResult.Failed;
+                return (40, $"{binaryName} has FORCE_INTEGRITY DllCharacteristic set. " +
+                           "Kernel enforces code integrity for all loaded modules.");
+            }
+        }
+        catch { }
+
         candidate.FilterResults["Signature"] = FilterResult.Passed;
         return (0, null);
     }
