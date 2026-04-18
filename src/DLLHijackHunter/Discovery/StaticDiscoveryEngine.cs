@@ -94,10 +94,33 @@ public class StaticDiscoveryEngine
 
                 if (contexts.Count == 0)
                 {
-                    AnsiConsole.MarkupLine($"[red]No execution contexts found for target: {Markup.Escape(_profile.TargetPath)}[/]");
-                    AnsiConsole.MarkupLine($"[dim]Tip: Try using just the filename (e.g., 'app.exe') or a directory path[/]");
-                    _lastContexts = new List<DiscoveryContext>();
-                    return;
+                    // ═══ DIRECT SCAN FALLBACK ═══
+                    // The target file exists on disk but has no registered execution context
+                    // (not a service, scheduled task, startup item, or COM object).
+                    // Create a synthetic context so the PE analyzer still inspects it.
+                    string expandedTarget = Environment.ExpandEnvironmentVariables(_profile.TargetPath);
+                    if (File.Exists(expandedTarget))
+                    {
+                        AnsiConsole.MarkupLine($"  [yellow]⚠ No registered trigger found for this binary. Performing direct PE analysis...[/]");
+                        ScanLogger.Debug($"Direct scan fallback: creating synthetic context for {expandedTarget}");
+                        contexts.Add(new DiscoveryContext
+                        {
+                            BinaryPath = Path.GetFullPath(expandedTarget),
+                            TriggerType = TriggerType.Manual,
+                            TriggerIdentifier = "Direct Scan (no registered trigger)",
+                            DisplayName = Path.GetFileName(expandedTarget),
+                            RunAsAccount = Native.TokenHelper.GetCurrentUsername(),
+                            StartType = "MANUAL",
+                            IsAutoStart = false
+                        });
+                    }
+                    else
+                    {
+                        AnsiConsole.MarkupLine($"[red]No execution contexts found for target: {Markup.Escape(_profile.TargetPath)}[/]");
+                        AnsiConsole.MarkupLine($"[dim]Tip: Try using just the filename (e.g., 'app.exe') or a directory path[/]");
+                        _lastContexts = new List<DiscoveryContext>();
+                        return;
+                    }
                 }
             }
 
@@ -426,11 +449,14 @@ public class StaticDiscoveryEngine
             }
         }
     }
-    // ═══ NEW: FILTER BY TARGET ═══
+    // ═══ FILTER BY TARGET ═══
     private static List<DiscoveryContext> FilterByTarget(List<DiscoveryContext> contexts, string target)
     {
         // Expand environment variables in target
         string expandedTarget = Environment.ExpandEnvironmentVariables(target);
+
+        // Normalize path separators (D:/vlc.exe → D:\vlc.exe)
+        expandedTarget = expandedTarget.Replace('/', Path.DirectorySeparatorChar);
 
         // Check if target is a directory or file
         bool isDirectory = Directory.Exists(expandedTarget);
@@ -438,16 +464,42 @@ public class StaticDiscoveryEngine
 
         if (isFile)
         {
-            // Exact file match
+            // Try full path normalization for exact match
+            string fullPath = Path.GetFullPath(expandedTarget);
+
+            // 1. Exact file path match
             var exactMatches = contexts.Where(c =>
+                c.BinaryPath.Equals(fullPath, StringComparison.OrdinalIgnoreCase) ||
                 c.BinaryPath.Equals(expandedTarget, StringComparison.OrdinalIgnoreCase)
             ).ToList();
 
             if (exactMatches.Any())
             {
-                AnsiConsole.MarkupLine($"  [green]✓ Found exact match for: {Markup.Escape(expandedTarget)}[/]");
+                AnsiConsole.MarkupLine($"  [green]✓ Found exact match for: {Markup.Escape(fullPath)}[/]");
                 return exactMatches;
             }
+
+            // 2. Filename-only match: user passed "D:\vlc.exe" → find any context with "vlc.exe"
+            //    This handles the case where the binary is registered at a different path
+            //    (e.g., C:\Program Files\VideoLAN\VLC\vlc.exe)
+            string targetFileName = Path.GetFileName(expandedTarget);
+            var filenameMatches = contexts.Where(c =>
+                Path.GetFileName(c.BinaryPath).Equals(targetFileName, StringComparison.OrdinalIgnoreCase)
+            ).ToList();
+
+            if (filenameMatches.Any())
+            {
+                AnsiConsole.MarkupLine($"  [green]✓ Found {filenameMatches.Count} registered contexts matching filename: {Markup.Escape(targetFileName)}[/]");
+                foreach (var match in filenameMatches.Take(5))
+                    AnsiConsole.MarkupLine($"    [dim]• {Markup.Escape(match.BinaryPath)} ({match.TriggerType})[/]");
+                if (filenameMatches.Count > 5)
+                    AnsiConsole.MarkupLine($"    [dim]... and {filenameMatches.Count - 5} more[/]");
+                return filenameMatches;
+            }
+
+            // 3. No context matches at all — return empty so the caller can do direct scan
+            ScanLogger.Debug($"FilterByTarget: file '{fullPath}' exists but has no matching execution context");
+            return new List<DiscoveryContext>();
         }
 
         if (isDirectory)
@@ -467,16 +519,18 @@ public class StaticDiscoveryEngine
             }
         }
 
-        // Partial match (filename or path fragment)
+        // Partial match (filename or path fragment) — for inputs like "VLC", "notepad", etc.
         string targetLower = target.ToLowerInvariant();
         var partialMatches = contexts.Where(c =>
         {
             string pathLower = c.BinaryPath.ToLowerInvariant();
             string filenameLower = Path.GetFileName(c.BinaryPath).ToLowerInvariant();
+            string fileNameNoExtLower = Path.GetFileNameWithoutExtension(c.BinaryPath).ToLowerInvariant();
 
             return pathLower.Contains(targetLower) ||
                    filenameLower.Contains(targetLower) ||
-                   filenameLower.Equals(targetLower, StringComparison.OrdinalIgnoreCase);
+                   filenameLower.Equals(targetLower, StringComparison.OrdinalIgnoreCase) ||
+                   fileNameNoExtLower.Equals(targetLower, StringComparison.OrdinalIgnoreCase);
         }).ToList();
 
         if (partialMatches.Any())
@@ -487,12 +541,12 @@ public class StaticDiscoveryEngine
             if (partialMatches.Count <= 5)
             {
                 foreach (var match in partialMatches)
-                    AnsiConsole.MarkupLine($"    [dim]• {Markup.Escape(match.BinaryPath)}[/]");
+                    AnsiConsole.MarkupLine($"    [dim]• {Markup.Escape(match.BinaryPath)} ({match.TriggerType})[/]");
             }
             else
             {
                 foreach (var match in partialMatches.Take(3))
-                    AnsiConsole.MarkupLine($"    [dim]• {Markup.Escape(match.BinaryPath)}[/]");
+                    AnsiConsole.MarkupLine($"    [dim]• {Markup.Escape(match.BinaryPath)} ({match.TriggerType})[/]");
                 AnsiConsole.MarkupLine($"    [dim]... and {partialMatches.Count - 3} more[/]");
             }
         }
