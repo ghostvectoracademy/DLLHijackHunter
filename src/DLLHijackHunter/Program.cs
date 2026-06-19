@@ -4,6 +4,7 @@ using DLLHijackHunter.Filters;
 using DLLHijackHunter.Canary;
 using DLLHijackHunter.Scoring;
 using DLLHijackHunter.Reporting;
+using DLLHijackHunter.Verification;
 using Spectre.Console;
 using System.CommandLine;
 using System.Diagnostics;
@@ -15,6 +16,12 @@ public class Program
 {
     public static async Task<int> Main(string[] args)
     {
+        // Hidden child mode for --verify-load: resolve one DLL name with a writable directory added
+        // to the search path and print where the real loader resolved it. Must run before any
+        // banner/scan setup. Output is a single token on stdout consumed by the parent.
+        if (args.Length == 3 && args[0] == "--resolve-probe")
+            return LoadProbe.RunChild(args[1], args[2]);
+
         // Global exception handlers
         AppDomain.CurrentDomain.UnhandledException += (sender, e) =>
         {
@@ -92,6 +99,11 @@ public class Program
             aliases: new[] { "--log-file" },
             description: "Write scan log to file for diagnostic purposes");
 
+        var verifyLoadOption = new Option<bool>(
+            aliases: new[] { "--verify-load" },
+            description: "Verify search order with the real loader: briefly place a benign probe at " +
+                "each writable position and confirm it wins the DLL search (standard user; modifies files transiently)");
+
         rootCommand.AddOption(profileOption);
         rootCommand.AddOption(outputOption);
         rootCommand.AddOption(formatOption);
@@ -103,6 +115,7 @@ public class Program
         rootCommand.AddOption(targetOption);
         rootCommand.AddOption(lpeOnlyOption);
         rootCommand.AddOption(logFileOption);
+        rootCommand.AddOption(verifyLoadOption);
 
         rootCommand.SetHandler(async (ctx) =>
         {
@@ -122,6 +135,7 @@ public class Program
             var target = ctx.ParseResult.GetValueForOption(targetOption);
             var lpeOnly = ctx.ParseResult.GetValueForOption(lpeOnlyOption);
             var logFile = ctx.ParseResult.GetValueForOption(logFileOption);
+            var verifyLoad = ctx.ParseResult.GetValueForOption(verifyLoadOption);
 
             using var cts = new CancellationTokenSource();
             Console.CancelKeyPress += (_, e) =>
@@ -132,7 +146,7 @@ public class Program
             };
 
             await RunScan(profile, output, format, minConf, noCanary, noEtw,
-                confirmedOnly, verbose, target, lpeOnly, logFile, cts.Token);
+                confirmedOnly, verbose, target, lpeOnly, logFile, verifyLoad, cts.Token);
         });
 
         return await rootCommand.InvokeAsync(args);
@@ -140,7 +154,8 @@ public class Program
 
     private static async Task RunScan(string profileName, string? outputPath, string format,
         double? minConfidence, bool noCanary, bool noEtw, bool confirmedOnly, bool verbose,
-        string? target, bool lpeOnly, string? logFile, CancellationToken cancellationToken)
+        string? target, bool lpeOnly, string? logFile, bool verifyLoad,
+        CancellationToken cancellationToken)
     {
         var stopwatch = Stopwatch.StartNew();
 
@@ -178,6 +193,7 @@ public class Program
         if (minConfidence.HasValue) profile.MinConfidence = minConfidence.Value;
         profile.Verbose = verbose;
         profile.LpeOnly = lpeOnly;
+        if (verifyLoad) profile.VerifyLoad = true;
         if (noCanary) profile.RunCanary = false;
         if (noEtw) profile.RunETW = false;
         if (confirmedOnly) profile.ConfirmedOnly = true;
@@ -298,6 +314,15 @@ public class Program
 
             await GenerateOutput(emptyResult, format, outputPath);
             return;
+        }
+
+        // ═══════════════════════════════════════════════
+        //  PHASE 2.5: LOAD-ORDER VERIFICATION (opt-in)
+        // ═══════════════════════════════════════════════
+        if (profile.VerifyLoad)
+        {
+            AnsiConsole.MarkupLine("\n[bold cyan]═══ Phase 2.5: Load-Order Verification ═══[/]");
+            LoadProbe.VerifyAll(candidates, profile, cancellationToken);
         }
 
         // ═══════════════════════════════════════════════

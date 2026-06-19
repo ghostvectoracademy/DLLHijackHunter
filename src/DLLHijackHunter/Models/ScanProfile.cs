@@ -23,6 +23,11 @@ public class ScanProfile
     public string? TargetPath { get; set; }
     public bool TriggerAutoElevate { get; set; } = false;
     public bool LpeOnly { get; set; } = false;
+    // Opt-in load-order verification: place a benign probe at each candidate's writable
+    // position and use the real Windows loader (in a child process) to confirm whether that
+    // position actually wins the DLL search. Off by default; works as a standard user.
+    public bool VerifyLoad { get; set; } = false;
+    public int LoadProbeTimeoutSeconds { get; set; } = 8;
 
     public static ScanProfile Aggressive => new()
     {

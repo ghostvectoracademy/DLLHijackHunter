@@ -170,6 +170,27 @@ That means a failed proxy canary does **not always** mean the underlying hijack 
 
 ---
 
+## Load-Order Verification (`--verify-load`)
+
+An **opt-in**, standard-user verification that sits between the filter pipeline and canary phase. For each applicable candidate it briefly writes a benign probe DLL to the writable hijack position, then asks the **real Windows loader** — in a short-lived child process — to resolve the DLL by name. Where the loader resolves determines the verdict:
+
+- **Verified win** — the loader picks the writable position. The search-order claim is *proven* (this corroboration lets the finding reach the High tier; canary execution remains the only path to **Confirmed**).
+- **Loses to protected** — the loader picks a KnownDLL, the System32 copy, or a SxS-redirected copy instead. The position is almost certainly **not** hijackable, so the candidate is heavily demoted. This catches the classic false positives a static search-order calculator misses (e.g. a `.local`/search-order "finding" for `ntdll.dll` that KnownDLLs makes unexploitable).
+
+Design and safety notes:
+
+- Runs in a **child process** so a name already loaded into the scanner can't short-circuit the result, and so any load side effect or crash is isolated. No elevation required.
+- Each probe is placed, resolved, and then **removed**; any pre-existing file is backed up and restored.
+- It models the modern `LOAD_LIBRARY_SEARCH` ordering, so it is only applied to **Phantom / Search-Order / Side-Load** candidates. `.local`, PATH, and AppInit/AppCert candidates use different mechanics and are reported as *Skipped*.
+- It writes files transiently to candidate positions (medium-impact); leave it off for fully passive, read-only triage.
+
+```powershell
+# Standard-user triage with loader-verified search order (no canary, no ETW)
+.\DLLHijackHunter.exe --lpe-only --no-canary --no-etw --verify-load
+```
+
+---
+
 ## Comparison
 
 | Feature | **DLLHijackHunter** | Robber | DLLSpy | WinPEAS | Procmon |
@@ -265,6 +286,8 @@ Options:
                                    profile's own threshold applies; passing this overrides it.
       --no-canary                Disable canary confirmation
       --no-etw                   Disable ETW runtime discovery
+      --verify-load              Verify search order with the real loader (see below).
+                                   Standard-user; transiently writes a benign probe.
       --confirmed-only           Only show canary-confirmed findings
       --lpe-only                 Strict LPE hunting: ignore System32/Program Files, show
                                    only standard-user-writable vulnerabilities

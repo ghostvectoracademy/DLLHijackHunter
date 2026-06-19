@@ -41,6 +41,14 @@ public class TieredScorer
                 c.UseCases.Add("Documented Exploit (HijackLibs)");
         }
 
+        // ═══ Load-order verification adjustments ═══
+        // A verified win (the real loader picks the writable position) is a strong corroboration;
+        // a loss to a protected DLL (KnownDLL/System32/SxS) is a strong false-positive signal.
+        if (c.LoadProbe == LoadProbeResult.Wins)
+            c.Confidence += 10;
+        else if (c.LoadProbe == LoadProbeResult.LosesToProtected)
+            c.Confidence -= 40;
+
         c.Confidence = Math.Clamp(c.Confidence, 0.0, 100.0);
 
         // ═══ Reserve High/Confirmed for verified or corroborated findings ═══
@@ -50,6 +58,7 @@ public class TieredScorer
         // tier so unverified heuristics never present as High confidence.
         bool hasProof = c.CanaryResult == CanaryResult.Fired
             || c.IsKnownVulnerability
+            || c.LoadProbe == LoadProbeResult.Wins
             || string.Equals(c.DiscoverySource, "etw", StringComparison.OrdinalIgnoreCase);
         if (!hasProof && c.Confidence > 79.0)
         {

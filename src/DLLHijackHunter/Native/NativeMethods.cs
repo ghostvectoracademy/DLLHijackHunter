@@ -23,6 +23,15 @@ public static class NativeMethods
     [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
     public static extern uint GetModuleFileNameW(IntPtr hModule, StringBuilder lpFilename, uint nSize);
 
+    // Used by the opt-in load-order verification probe (LoadProbe) to add the candidate's
+    // writable position as a search directory before resolving the DLL by name.
+    [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+    public static extern IntPtr AddDllDirectory(string NewDirectory);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool RemoveDllDirectory(IntPtr Cookie);
+
     [DllImport("kernel32.dll")]
     public static extern IntPtr GetCurrentProcess();
 
@@ -114,6 +123,8 @@ public static class NativeMethods
     public const uint LOAD_LIBRARY_SEARCH_SYSTEM32 = 0x00000800;
     public const uint LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR = 0x00000100;
     public const uint LOAD_LIBRARY_SEARCH_APPLICATION_DIR = 0x00000200;
+    public const uint LOAD_LIBRARY_SEARCH_USER_DIRS = 0x00000400;
+    public const uint LOAD_LIBRARY_SEARCH_DEFAULT_DIRS = 0x00001000;
 
     // ─── Structs ───
     [StructLayout(LayoutKind.Sequential)]
