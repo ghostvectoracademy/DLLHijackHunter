@@ -40,6 +40,16 @@ public enum CanaryResult
     Blocked
 }
 
+public enum LoadProbeResult
+{
+    NotRun,           // Probe disabled or not applicable
+    Skipped,          // Candidate type not faithfully representable by the probe
+    Wins,             // The writable position wins the loader's search (resolution verified)
+    LosesToProtected, // A protected DLL (KnownDLL/System32/SxS) wins instead — likely false positive
+    NotResolved,      // The name did not resolve even with the probe placed
+    Error             // Probe could not run (child failure, file locked, etc.)
+}
+
 public enum ConfidenceTier
 {
     Confirmed,   // Canary-proven, 100% exploitable
@@ -85,6 +95,10 @@ public class HijackCandidate
     public bool ManifestCoversThisSpecificDll { get; set; }
     public AnalysisConfidence LoadLibAnalysisConfidence { get; set; } = AnalysisConfidence.Unknown;
     public bool IsProtectedProcess { get; set; }
+
+    // ─── Load-order verification (opt-in --verify-load) ───
+    public LoadProbeResult LoadProbe { get; set; } = LoadProbeResult.NotRun;
+    public string? LoadProbeResolvedPath { get; set; }
 
     // ─── Canary confirmation ───
     public CanaryResult CanaryResult { get; set; } = CanaryResult.NotTested;

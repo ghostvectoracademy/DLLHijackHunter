@@ -113,6 +113,25 @@ public static class CanaryDllBuilder
         return h.ToString("x16");
     }
 
+    /// <summary>
+    /// Extract the embedded x64 canary once to use as the benign payload for the load-order
+    /// probe (the scanner and its probe child are always x64). Returns false if unavailable.
+    /// </summary>
+    public static bool TryGetProbeDll(out string path)
+    {
+        path = Path.Combine(CanaryDir, "loadprobe.dll");
+        try
+        {
+            Directory.CreateDirectory(CanaryDir);
+            if (File.Exists(path)) return true;
+            return TryExtractPrecompiled(is64Bit: true, path);
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
     private static bool TryExtractPrecompiled(bool is64Bit, string outputPath)
     {
         string leaf = is64Bit ? "canary_x64.dll" : "canary_x86.dll";

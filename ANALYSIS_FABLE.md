@@ -393,3 +393,23 @@ Remaining: **code-signing** the embedded canaries (needs a certificate; release-
 - CLI options gained `--lpe-only` / `--log-file`; the `--min-confidence` default note corrected (profile threshold applies unless explicitly overridden).
 - Comparison table ✅s annotated with six footnotes (canary toolchain dependency, FP-reduction scope, persistence heuristic, experimental proxy, trigger coverage, KB size).
 - New **Tier gating** + **Recommended triage configuration** subsections under Scoring (standard-user `--lpe-only` is the most trustworthy LPE config).
+
+### Dynamic load-order verification probe (§C, 2026-06-20)
+
+Closed the §C gap *"No actual dynamic load probe (LoadLibraryEx) to verify search order — declared P/Invokes go unused."* The previously-dead `LoadLibraryExW`/`FreeLibrary`/`GetModuleFileNameW` imports are now used.
+
+New opt-in `--verify-load` phase (between filtering and canary) that adjudicates each candidate's search-order claim with the **real Windows loader** instead of the static calculator:
+
+- For Phantom/SearchOrder/SideLoad candidates it places a benign probe (the embedded x64 canary) at the writable hijack position and, **in a short-lived child process** (`--resolve-probe <dir> <dll>`), calls `AddDllDirectory` + `LoadLibraryExW` with the `LOAD_LIBRARY_SEARCH_*` flags, then `GetModuleFileNameW` to see which path the loader actually picked.
+  - resolves to the writable position → **Wins** (treated as a proof signal — may reach High; +10 confidence).
+  - resolves to a KnownDLL/System32/SxS path → **LosesToProtected** (strong false-positive signal — −40 confidence, never High). This is the loader catching exactly the `.local`/KnownDLL false positives the original audit flagged (the `ntdll.dll`-beside-`APHostService` class).
+- Child process (not in-process) for two reasons: a name already loaded into the scanner would short-circuit `LoadLibraryEx` and mislead; and it isolates any load side effect/crash. Runs as a **standard user** — no elevation, no victim trigger.
+- DotLocal/EnvPath/AppInit/AppCert use different load mechanics, so they are **Skipped** (the modern `LOAD_LIBRARY_SEARCH` ordering doesn't faithfully model them).
+- The probe is placed, resolved, then removed; any pre-existing file is backed up and restored.
+
+Files: `Native/NativeMethods.cs` (added `AddDllDirectory`/`RemoveDllDirectory` + `LOAD_LIBRARY_SEARCH_USER_DIRS`/`DEFAULT_DIRS`), `Verification/LoadProbe.cs` (new — child resolver + parent orchestration), `Models/HijackCandidate.cs` (`LoadProbeResult` enum + fields), `Models/ScanProfile.cs` (`VerifyLoad`, `LoadProbeTimeoutSeconds`), `Canary/CanaryDllBuilder.cs` (`TryGetProbeDll`), `Scoring/TieredScorer.cs` (wins=proof, loses=−40), `Program.cs` (hidden child mode + `--verify-load` + phase 2.5). README documents the flag and its semantics/safety.
+
+**Proof:**
+- Empirically established loader semantics first: with a planted probe, a **KnownDLL resolves to System32** (correctly rejected) while a **non-KnownDLL/phantom resolves to the writable position** (correctly won) — verified both in a prototype and in the built exe's child mode (phantom→WIN, kernel32→System32, unplanted→NOTRESOLVED).
+- Parent orchestration (place → spawn → interpret → remove/restore) validated against the real exe child, including backup/restore integrity.
+- `dotnet build` → **0 warnings, 0 errors**; `dotnet test` → **10/10** (added 3 scorer tests: static-only capped below High; probe-win reaches High; probe-loss demoted and never High).
