@@ -26,6 +26,7 @@
 
   <ItemGroup>
     <EmbeddedResource Include="Resources\phantom_dlls.json" />
+    <EmbeddedResource Include="Resources\hijacklibs.json" />
   </ItemGroup>
 
 </Project>

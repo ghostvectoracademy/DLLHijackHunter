@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using PeNet;
 using PeNet.Header.Pe;
 
@@ -5,10 +6,20 @@ namespace DLLHijackHunter.Discovery;
 
 public class PEAnalyzer
 {
+    // PE analysis is deterministic for a given file path during a read-only scan
+    // and is invoked once per candidate by several filters. Memoizing avoids the
+    // repeated 2 MB raw reads and authenticode verification that dominated wall-clock.
+    private static readonly ConcurrentDictionary<string, PEAnalysisResult> _cache =
+        new(StringComparer.OrdinalIgnoreCase);
+
     /// <summary>
     /// Get all DLLs imported by a PE file (standard imports + delay loads).
+    /// Results are memoized by file path for the lifetime of the process.
     /// </summary>
     public static PEAnalysisResult Analyze(string filePath)
+        => _cache.GetOrAdd(filePath, AnalyzeUncached);
+
+    private static PEAnalysisResult AnalyzeUncached(string filePath)
     {
         var result = new PEAnalysisResult { FilePath = filePath };
 
@@ -216,10 +227,11 @@ public class PEAnalyzer
             {
                 foreach (var entry in resourceDir.DirectoryEntries)
                 {
+                    if (entry == null) continue;
                     try
                     {
                         // PeNet 4.x uses NameResolved property
-                        if (entry.NameResolved != null && 
+                        if (entry.NameResolved != null &&
                             entry.NameResolved.Equals("RT_MANIFEST", StringComparison.OrdinalIgnoreCase))
                         {
                             result.HasEmbeddedManifest = true;

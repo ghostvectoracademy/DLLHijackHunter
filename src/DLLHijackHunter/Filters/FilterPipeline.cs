@@ -144,7 +144,6 @@ public class FilterPipeline
         TriggerType.Startup => 7,
         TriggerType.RunKey => 6,
         TriggerType.COM => 5,
-        TriggerType.WMI => 4,
         _ => 1
     };
 }

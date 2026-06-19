@@ -21,6 +21,6 @@ public static class BannerConstants
             AnsiConsole.MarkupLine(line);
 
         AnsiConsole.WriteLine();
-        AnsiConsole.MarkupLine("[dim]Automated DLL Hijacking Detection — Zero False Positives[/]");
+        AnsiConsole.MarkupLine("[dim]Automated DLL Hijacking Discovery & Triage — Attacker-Relative Writability[/]");
     }
 }

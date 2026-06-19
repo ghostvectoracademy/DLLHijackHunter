@@ -43,6 +43,21 @@ public class TieredScorer
 
         c.Confidence = Math.Clamp(c.Confidence, 0.0, 100.0);
 
+        // ═══ Reserve High/Confirmed for verified or corroborated findings ═══
+        // A clean static search-order match is a *discovery* signal, not proof. Without
+        // a corroborating signal — a fired canary, an ETW runtime load observation, or a
+        // documented HijackLibs match — a candidate is capped at the top of the Medium
+        // tier so unverified heuristics never present as High confidence.
+        bool hasProof = c.CanaryResult == CanaryResult.Fired
+            || c.IsKnownVulnerability
+            || string.Equals(c.DiscoverySource, "etw", StringComparison.OrdinalIgnoreCase);
+        if (!hasProof && c.Confidence > 79.0)
+        {
+            c.Confidence = 79.0;
+            if (!c.Notes.Any(n => n.Contains("Static-only", StringComparison.OrdinalIgnoreCase)))
+                c.Notes.Add("Static-only: capped below High pending verification (canary/ETW/KB)");
+        }
+
         // ═══ Determine tier ═══
         c.Tier = c.CanaryResult == CanaryResult.Fired ? ConfidenceTier.Confirmed :
                  c.Confidence >= 80 ? ConfidenceTier.High :
@@ -109,7 +124,6 @@ public class TieredScorer
             HijackType.SearchOrder => 1.5,
             HijackType.SideLoad => 1.5,
             HijackType.EnvPath => 2.0,
-            HijackType.CWD => 0.5,
             _ => 1.0
         };
 

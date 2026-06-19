@@ -23,7 +23,7 @@ public class AttackChainCorrelator
 
         // 2. Build "The Direct Path" (User -> SYSTEM)
         // We do this first because if a Direct Path exists, it's the most critical
-        var directSystem = systemServices.Where(c => c.Type == HijackType.EnvPath || c.Type == HijackType.CWD).ToList();
+        var directSystem = systemServices.Where(c => c.Type == HijackType.EnvPath).ToList();
         if (directSystem.Any())
         {
             var bestDirect = directSystem.OrderByDescending(c => c.FinalScore).First();

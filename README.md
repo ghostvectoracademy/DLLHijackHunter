@@ -75,18 +75,18 @@ flowchart TB
 
 ### Hijack Type Coverage
 
-| Type | Description | Stealth |
-|---|---|---|
-| **Phantom** | DLL doesn't exist anywhere on disk | High |
-| **Search Order** | Place DLL earlier in the Windows search order | High |
-| **Side-Loading** | Abuse legitimate app loading DLLs from its directory | High |
-| **.local Redirect** | Hijack via `.local` directory redirection | High |
-| **KnownDLL Bypass** | Attempt bypass via `.local` or WoW64 edge cases | Medium |
-| **ENV PATH** | Weaponization of writable directories in system `PATH` | High |
-| **CWD** | Current Working Directory hijack | Low |
-| **AppInit DLLs** | `AppInit_DLLs` registry abuse | Low |
-| **IFEO** | Image File Execution Options debugger abuse | Medium |
-| **AppCert DLLs** | `AppCertDLLs` registry hijack | Low |
+| Type | Description | Stealth | Status |
+|---|---|---|---|
+| **Phantom** | DLL doesn't exist anywhere on disk | High | Implemented |
+| **Search Order** | Place DLL earlier in the Windows search order | High | Implemented |
+| **Side-Loading** | Abuse legitimate app loading DLLs from its directory | High | Implemented (AutoElevate copy-to-temp path) |
+| **.local Redirect** | Hijack via `.local` directory redirection | High | Implemented |
+| **ENV PATH** | Weaponization of writable directories in system `PATH` | High | Implemented (curated service/DLL map) |
+| **AppInit DLLs** | `AppInit_DLLs` registry abuse | Low | Implemented |
+| **AppCert DLLs** | `AppCertDLLs` registry abuse (loads into every `CreateProcess`/`WinExec` caller) | Low | Implemented |
+| **CWD** | Current Working Directory hijack | Low | Planned — not currently produced by any discovery path |
+
+> IFEO Debugger entries are enumerated and the referenced binary is analyzed for DLL imports, but there is no dedicated IFEO/KnownDLL-bypass hijack type — those are not advertised as standalone detections.
 
 ### UAC Bypass Discovery
 
@@ -98,9 +98,9 @@ DLLHijackHunter includes dedicated UAC bypass discovery:
 
 ### Targeted Vulnerability Knowledge Base
 
-- **Targeted vulnerability mapping** — Cross-references discovered imports against an offline dictionary of known vulnerable software patterns (for example, HijackLibs-style matches)
-- **Automated PATH exploitation** — Evaluates writable `PATH` folders and generates hijack candidates for native Windows services that search `PATH` for missing DLLs
-- **Expanded phantom DLL hunting** — Searches for a broad library of high-value phantom DLL opportunities across multiple categories
+- **Targeted vulnerability mapping** — Cross-references discovered imports against a **bundled snapshot of the [HijackLibs](https://hijacklibs.net/) dataset** (≈590 documented DLL entries spanning ≈700 vulnerable executables), embedded as `Resources/hijacklibs.json`. A match boosts confidence and links the finding to its HijackLibs reference page; the absence of a match means nothing. The dataset is data-driven — refresh it by re-downloading `https://hijacklibs.net/api/hijacklibs.json` over that resource (no code changes required). Dataset © the HijackLibs project and contributors.
+- **Automated PATH exploitation** — Evaluates writable `PATH` folders and generates hijack candidates for a curated map of native Windows services known to search `PATH` for missing DLLs
+- **Expanded phantom DLL hunting** — Searches for a library of high-value phantom DLL opportunities across multiple categories
 
 ### Filter Pipeline
 
@@ -109,7 +109,7 @@ The pipeline reduces false positives through two stages:
 **Hard Gates**
 - API set schema filtering (`api-ms-*`, `ext-ms-*`)
 - KnownDLL filtering
-- ACL-based writability validation
+- **Attacker-relative** ACL writability validation — a path counts as writable only if an *unprivileged* principal (`Users` / `Authenticated Users` / `Everyone`, plus leak-proof sub-admin service accounts like `LOCAL SERVICE`/`NETWORK SERVICE`) has effective write rights. Crucially, this is computed independently of the token the tool runs under, so running elevated does **not** make `System32`/`Program Files` look writable. This is what makes elevated runs meaningful for LPE triage.
 
 **Soft Gates**
 - WinSxS manifest penalty
@@ -144,10 +144,12 @@ sequenceDiagram
 ```
 
 The canary DLL:
-- Is built with **MSVC (`cl.exe`)**
+- Is built with **MSVC (`cl.exe`)** — the Visual Studio C++ build tools must be present on the host. The tool locates the toolchain via `vswhere` and initializes the correct target architecture (x64/x86, matched to the victim's bitness) through `vcvarsall.bat`, so a developer command prompt is **not** required — but if no MSVC toolchain is installed, canary confirmation is skipped and findings remain unverified (`NotTested`).
 - Uses a **file-based confirmation mechanism**
 - Captures execution metadata such as user, integrity level, and privilege indicators
 - Contains no malicious payload; it is strictly a detection and validation mechanism
+
+> **Requirement:** Phase 3 (canary confirmation) needs the MSVC C++ toolchain on the target. On a host without Visual Studio Build Tools, all findings are reported as `NotTested` and confidence is derived from static/ETW signals only. Precompiled, signed dual-architecture canaries (removing the compiler dependency entirely) are planned.
 
 ### Important note on proxy/export-forwarding mode
 
@@ -171,19 +173,28 @@ That means a failed proxy canary does **not always** mean the underlying hijack 
 | Search order analysis | ✅ | ❌ | ❌ | ❌ | ❌ |
 | ACL-based writability check | ✅ | Partial | ❌ | Basic | ❌ |
 | ETW real-time monitoring | ✅ | ❌ | ❌ | ❌ | ✅ |
-| Canary confirmation | ✅ | ❌ | ❌ | ❌ | ❌ |
+| Canary confirmation | ✅¹ | ❌ | ❌ | ❌ | ❌ |
 | Privilege escalation check | ✅ | ❌ | ❌ | ❌ | ❌ |
 | UAC bypass discovery | ✅ | ❌ | ❌ | ❌ | ❌ |
-| False positive reduction | ✅ | None | Basic | None | None |
-| Reboot persistence check | ✅ | ❌ | ❌ | ❌ | ❌ |
-| Proxy DLL generation | ✅ | ❌ | ❌ | ❌ | ❌ |
+| False positive reduction | ✅² | None | Basic | None | None |
+| Reboot persistence check | ✅³ | ❌ | ❌ | ❌ | ❌ |
+| Proxy DLL generation | ✅⁴ | ❌ | ❌ | ❌ | ❌ |
 | Confidence scoring | ✅ | ❌ | ❌ | ❌ | ❌ |
-| Auto trigger (svc/task/COM) | ✅ | ❌ | ❌ | ❌ | ❌ |
+| Auto trigger (svc/task/COM) | ✅⁵ | ❌ | ❌ | ❌ | ❌ |
 | HTML/JSON reporting | ✅ | ❌ | ❌ | TXT | ❌ |
-| Threat intel correlation | ✅ | ❌ | ❌ | ❌ | ❌ |
+| Threat intel correlation | ✅⁶ | ❌ | ❌ | ❌ | ❌ |
 | Automated PATH exploits | ✅ | ❌ | ❌ | ❌ | ❌ |
 | Target-specific scanning | ✅ | ❌ | ❌ | ❌ | ✅ |
 | Self-contained binary | ✅ | ❌ | ❌ | ✅ | ❌ |
+
+<sub>
+¹ Requires the MSVC C++ toolchain on the host; without it, findings stay `NotTested`.<br/>
+² Via attacker-relative ACL writability (see Filter Pipeline). It reduces — it does not eliminate — false positives; soft-gate heuristics (manifest/SxS/LoadLibraryEx) still carry uncertainty. Unverified static findings are now capped below the **High** tier.<br/>
+³ Derived from auto-start status, not a verified reboot test.<br/>
+⁴ Export-forwarding proxy is experimental/best-effort (see note above).<br/>
+⁵ Service/Task/COM triggers only; UAC-bypass findings are not canary-triggered.<br/>
+⁶ Backed by a bundled snapshot of the HijackLibs dataset (~590 entries); refreshable from hijacklibs.net.
+</sub>
 
 ---
 
@@ -244,12 +255,18 @@ Options:
   -f, --format <format>          Output format [default: console]
                                    console | json | html
   -t, --target <target>          Target specific binary, directory, or filename
-      --min-confidence <value>   Minimum confidence threshold 0-100 [default: 20]
+      --min-confidence <value>   Minimum confidence threshold 0-100. When omitted, each
+                                   profile's own threshold applies; passing this overrides it.
       --no-canary                Disable canary confirmation
       --no-etw                   Disable ETW runtime discovery
       --confirmed-only           Only show canary-confirmed findings
+      --lpe-only                 Strict LPE hunting: ignore System32/Program Files, show
+                                   only standard-user-writable vulnerabilities
+      --log-file <path>          Write a diagnostic scan log to file
   -v, --verbose                  Verbose output
 ```
+
+> Note: `--min-confidence` is only treated as an override when you explicitly pass it. Otherwise the selected profile's threshold is used (e.g. `safe` = 50%, `strict` = 80%).
 
 ### Scan Profiles
 
@@ -274,6 +291,15 @@ Typical impact considerations include:
 - reboot persistence
 
 Confirmed canary execution should be treated as the strongest validation signal.
+
+**Tier gating:** the **High** and **Confirmed** tiers are reserved for findings backed by a proof signal — a fired canary, an ETW runtime load observation, or a documented knowledge-base match. A purely static search-order match, however clean, is capped at the top of the **Medium** tier and annotated as `Static-only` so unverified heuristics never present as high-confidence.
+
+### Recommended triage configuration
+
+Because writability is evaluated **attacker-relative**, both elevated and standard-user runs are meaningful:
+
+- For LPE triage, the most trustworthy configuration is a **standard-user run with `--lpe-only`** (and `--no-canary` if a compiler isn't available) — every surviving finding is genuinely writable by an unprivileged principal.
+- Elevated runs are required for ETW and canary confirmation, and are now safe from the historical "everything in System32 looks writable" inversion.
 
 ---
 

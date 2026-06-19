@@ -109,7 +109,12 @@ public class Program
             var profile = ctx.ParseResult.GetValueForOption(profileOption)!;
             var output = ctx.ParseResult.GetValueForOption(outputOption);
             var format = ctx.ParseResult.GetValueForOption(formatOption)!;
-            var minConf = ctx.ParseResult.GetValueForOption(minConfidenceOption);
+            // Only treat --min-confidence as an override when the user explicitly
+            // passed it; otherwise leave each profile's own threshold intact.
+            var minConfResult = ctx.ParseResult.FindResultFor(minConfidenceOption);
+            double? minConf = (minConfResult is null || minConfResult.IsImplicit)
+                ? (double?)null
+                : ctx.ParseResult.GetValueForOption(minConfidenceOption);
             var noCanary = ctx.ParseResult.GetValueForOption(noCanaryOption);
             var noEtw = ctx.ParseResult.GetValueForOption(noEtwOption);
             var confirmedOnly = ctx.ParseResult.GetValueForOption(confirmedOnlyOption);
@@ -134,7 +139,7 @@ public class Program
     }
 
     private static async Task RunScan(string profileName, string? outputPath, string format,
-        double minConfidence, bool noCanary, bool noEtw, bool confirmedOnly, bool verbose,
+        double? minConfidence, bool noCanary, bool noEtw, bool confirmedOnly, bool verbose,
         string? target, bool lpeOnly, string? logFile, CancellationToken cancellationToken)
     {
         var stopwatch = Stopwatch.StartNew();
@@ -170,7 +175,7 @@ public class Program
 
         // ─── Build profile ───
         var profile = ScanProfile.FromName(profileName);
-        profile.MinConfidence = minConfidence;
+        if (minConfidence.HasValue) profile.MinConfidence = minConfidence.Value;
         profile.Verbose = verbose;
         profile.LpeOnly = lpeOnly;
         if (noCanary) profile.RunCanary = false;

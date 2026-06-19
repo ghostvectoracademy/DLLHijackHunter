@@ -193,21 +193,51 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD reason, LPVOID lpReserved)
     private static bool CompileCanary(string sourcePath, string outputPath, bool is64Bit,
         string? originalDllPath)
     {
-        // Try cl.exe exclusively since MSVC linker pragmas (#pragma comment(linker, ...)) 
-        // are used for proxy DLL exports, which GCC does not natively parse correctly in this format.
+        // The canary MUST match the victim process bitness or it will silently fail to load.
+        // cl.exe's target architecture is selected by its toolchain environment (vcvarsall),
+        // NOT by a command-line flag — so we locate vcvarsall.bat and initialise the correct
+        // target ("x64" vs "x86") before invoking cl.exe through cmd. This both honours the
+        // detected bitness and lets the canary build without a pre-opened developer prompt.
+        string targetArch = is64Bit ? "x64" : "x86";
+        string clArgs = $"/LD /Fe:\"{outputPath}\" \"{sourcePath}\" " +
+                        "advapi32.lib kernel32.lib /link /DLL /NOLOGO";
+
+        string? vcvarsall = FindVcvarsall();
+        if (vcvarsall != null)
+        {
+            // cmd /c ""vcvarsall.bat" x64 && cl.exe ...". The outer quotes are required by cmd
+            // when the whole command string is itself quoted.
+            string command = $"\"\"{vcvarsall}\" {targetArch} && cl.exe {clArgs}\"";
+            if (RunCompiler("cmd.exe", "/c " + command, outputPath))
+                return true;
+
+            ScanLogger.Warn($"[Canary] vcvarsall ({targetArch}) compile failed; " +
+                "falling back to cl.exe on PATH.");
+        }
+
+        // Fallback: a developer command prompt may already have the toolchain on PATH.
+        // Its target architecture is whatever that prompt set up and may not match is64Bit.
         string? compiler = FindInPath("cl.exe");
+        if (compiler == null)
+        {
+            ScanLogger.Warn("[Canary] No MSVC toolchain found (vcvarsall + cl.exe both absent); " +
+                "cannot build canary.");
+            return false;
+        }
 
-        if (compiler == null) return false;
+        ScanLogger.Warn($"[Canary] Using cl.exe on PATH — its target arch may not match the " +
+            $"required {targetArch} victim bitness.");
+        return RunCompiler(compiler, clArgs, outputPath);
+    }
 
+    private static bool RunCompiler(string fileName, string arguments, string outputPath)
+    {
         try
         {
-            string args = $"/LD /Fe:\"{outputPath}\" \"{sourcePath}\" " +
-                          "advapi32.lib kernel32.lib /link /DLL /NOLOGO";
-
             var psi = new System.Diagnostics.ProcessStartInfo
             {
-                FileName = compiler,
-                Arguments = args,
+                FileName = fileName,
+                Arguments = arguments,
                 UseShellExecute = false,
                 CreateNoWindow = true,
                 RedirectStandardOutput = true,
@@ -225,6 +255,46 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD reason, LPVOID lpReserved)
         catch
         {
             return false;
+        }
+    }
+
+    /// <summary>
+    /// Locate vcvarsall.bat for the latest VS install carrying the C++ toolchain, via vswhere.
+    /// </summary>
+    private static string? FindVcvarsall()
+    {
+        try
+        {
+            string programFilesX86 = Environment.GetFolderPath(
+                Environment.SpecialFolder.ProgramFilesX86);
+            string vswhere = Path.Combine(programFilesX86,
+                "Microsoft Visual Studio", "Installer", "vswhere.exe");
+            if (!File.Exists(vswhere)) return null;
+
+            var psi = new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = vswhere,
+                Arguments = "-latest -products * " +
+                            "-requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 " +
+                            "-property installationPath",
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                CreateNoWindow = true
+            };
+            var proc = System.Diagnostics.Process.Start(psi);
+            if (proc == null) return null;
+
+            string installPath = proc.StandardOutput.ReadToEnd().Trim();
+            proc.WaitForExit(5000);
+            if (proc.ExitCode != 0 || string.IsNullOrEmpty(installPath)) return null;
+
+            string vcvarsall = Path.Combine(installPath.Split('\n')[0].Trim(),
+                "VC", "Auxiliary", "Build", "vcvarsall.bat");
+            return File.Exists(vcvarsall) ? vcvarsall : null;
+        }
+        catch
+        {
+            return null;
         }
     }
 

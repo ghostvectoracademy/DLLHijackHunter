@@ -208,7 +208,7 @@ public class ETWDiscoveryEngine
                     actualDir.StartsWith(winDir + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
                     return;
 
-                if (AclChecker.IsDirectoryWritableByCurrentUser(actualDir))
+                if (AclChecker.IsDirectoryWritableByStandardUser(actualDir))
                 {
                     _candidates.Add(new HijackCandidate
                     {
@@ -244,7 +244,7 @@ public class ETWDiscoveryEngine
                 {
                     string? dir = Path.GetDirectoryName(fileName);
                     if (dir != null && Directory.Exists(dir) &&
-                        AclChecker.IsDirectoryWritableByCurrentUser(dir))
+                        AclChecker.IsDirectoryWritableByStandardUser(dir))
                     {
                         string dllName = Path.GetFileName(fileName);
                         string processPath = "";

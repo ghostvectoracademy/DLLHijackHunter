@@ -154,8 +154,8 @@ public class StaticDiscoveryEngine
             foreach (var appInit in appInitDlls)
             {
                 string? dir = Path.GetDirectoryName(appInit.BinaryPath);
-                if (dir != null && Directory.Exists(dir) && 
-                    AclChecker.IsDirectoryWritableByCurrentUser(dir))
+                if (dir != null && Directory.Exists(dir) &&
+                    AclChecker.IsDirectoryWritableByStandardUser(dir, appInit.RunAsAccount))
                 {
                     candidates.Add(new HijackCandidate
                     {
@@ -175,9 +175,38 @@ public class StaticDiscoveryEngine
                 }
             }
 
+            // ═══ Process AppCertDlls directly as targets ═══
+            // AppCertDLLs load into every process that calls CreateProcess*/WinExec, so a
+            // writable referenced DLL yields near-global injection — the same shape as AppInit.
+            var appCertDlls = contexts.Where(c => c.TriggerIdentifier == "AppCertDlls").ToList();
+            foreach (var appCert in appCertDlls)
+            {
+                string? dir = Path.GetDirectoryName(appCert.BinaryPath);
+                if (dir != null && Directory.Exists(dir) &&
+                    AclChecker.IsDirectoryWritableByStandardUser(dir, appCert.RunAsAccount))
+                {
+                    candidates.Add(new HijackCandidate
+                    {
+                        BinaryPath = "AppCertDlls (CreateProcess Injection)", // Logical host
+                        DllName = Path.GetFileName(appCert.BinaryPath),
+                        DllLegitPath = File.Exists(appCert.BinaryPath) ? appCert.BinaryPath : null,
+                        Type = HijackType.AppCertDll,
+                        HijackWritablePath = appCert.BinaryPath,
+                        Trigger = TriggerType.Startup,
+                        TriggerIdentifier = appCert.TriggerIdentifier,
+                        RunAsAccount = appCert.RunAsAccount,
+                        ServiceStartType = "AUTO_START",
+                        SurvivesReboot = true,
+                        DiscoverySource = "static",
+                        Notes = { "AppCertDlls registry entry points to a writable DLL path. Modifying this DLL achieves injection into every process that calls CreateProcess/WinExec." }
+                    });
+                }
+            }
+
             var uniqueBinaries = contexts
                 .Where(c => !(c.TriggerType == TriggerType.COM && !File.Exists(c.BinaryPath)))
                 .Where(c => c.TriggerIdentifier != "AppInit_DLLs") // Exclude from PE analysis
+                .Where(c => c.TriggerIdentifier != "AppCertDlls")  // Exclude from PE analysis
                 .Where(c => File.Exists(c.BinaryPath))
                 .GroupBy(c => c.BinaryPath, StringComparer.OrdinalIgnoreCase)
                 .ToDictionary(g => g.Key, g => g.ToList(), StringComparer.OrdinalIgnoreCase);
@@ -241,8 +270,12 @@ public class StaticDiscoveryEngine
         // ─── KNOWLEDGE BASE LOOKUP ───
         bool isKnownVuln = KnowledgeBaseEngine.CheckKnowledgeBase(binaryPath, dllName, out string? kbRef);
 
+        // Account the target runs as — also considered when judging writability so a
+        // directory writable only by a non-privileged service account still surfaces.
+        string bestAccount = contexts.OrderByDescending(c => GetContextPriority(c)).First().RunAsAccount;
+
         // 1. Normal Search Order Logic
-        var hijackPositions = SearchOrderCalculator.FindHijackablePositions(binaryPath, dllName);
+        var hijackPositions = SearchOrderCalculator.FindHijackablePositions(binaryPath, dllName, bestAccount);
         foreach (var hijackPath in hijackPositions)
         {
             var bestCtx = contexts.OrderByDescending(c => GetContextPriority(c)).First();
@@ -279,7 +312,7 @@ public class StaticDiscoveryEngine
         string? dotLocalParent = Path.GetDirectoryName(binaryPath);
 
         if (dotLocalParent != null &&
-            AclChecker.IsDirectoryWritableByCurrentUser(dotLocalParent) &&
+            AclChecker.IsDirectoryWritableByStandardUser(dotLocalParent, bestAccount) &&
             !Directory.Exists(dotLocalDir))
         {
             var bestCtx = contexts.OrderByDescending(c => GetContextPriority(c)).First();
@@ -354,6 +387,8 @@ public class StaticDiscoveryEngine
     private void CheckPhantomDlls(string binaryPath, List<DiscoveryContext> contexts,
         PEAnalysisResult peResult, List<HijackCandidate> candidates)
     {
+        string bestAccount = contexts.OrderByDescending(c => GetContextPriority(c)).First().RunAsAccount;
+
         foreach (string dll in peResult.AllImportedDlls)
         {
             if (!PhantomDllDatabase.Value.Contains(dll)) continue;
@@ -362,7 +397,7 @@ public class StaticDiscoveryEngine
             if (actualLocation != null) continue;
 
             string? binaryDir = Path.GetDirectoryName(binaryPath);
-            if (binaryDir != null && AclChecker.IsDirectoryWritableByCurrentUser(binaryDir))
+            if (binaryDir != null && AclChecker.IsDirectoryWritableByStandardUser(binaryDir, bestAccount))
             {
                 var bestCtx = contexts.OrderByDescending(c => GetContextPriority(c)).First();
                 candidates.Add(new HijackCandidate
@@ -394,7 +429,7 @@ public class StaticDiscoveryEngine
         foreach (var dir in pathDirs)
         {
             if (!Directory.Exists(dir)) continue;
-            if (Native.AclChecker.IsDirectoryWritableByCurrentUser(dir)) writablePaths.Add(dir);
+            if (Native.AclChecker.IsDirectoryWritableByStandardUser(dir)) writablePaths.Add(dir);
         }
 
         if (writablePaths.Any())
@@ -564,7 +599,6 @@ public class StaticDiscoveryEngine
         TriggerType.Startup => 5,
         TriggerType.RunKey => 4,
         TriggerType.COM => 3,
-        TriggerType.WMI => 2,
         _ => 1
     };
 }

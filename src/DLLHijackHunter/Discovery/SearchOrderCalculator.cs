@@ -77,8 +77,11 @@ public static class SearchOrderCalculator
 
     /// <summary>
     /// Find writable positions in the search order that come BEFORE the actual DLL.
+    /// Writability is judged for an unprivileged attacker (optionally also the target's
+    /// non-privileged RunAsAccount), never for the elevated token running this tool.
     /// </summary>
-    public static List<string> FindHijackablePositions(string binaryPath, string dllName)
+    public static List<string> FindHijackablePositions(string binaryPath, string dllName,
+        string? runAsAccount = null)
     {
         var order = GetSearchOrder(binaryPath, dllName);
         string? actualLocation = FindActualDllLocation(binaryPath, dllName);
@@ -93,9 +96,9 @@ public static class SearchOrderCalculator
                 path.Equals(actualLocation, StringComparison.OrdinalIgnoreCase))
                 break;
 
-            // Check if we can write to this location
+            // Check if an unprivileged attacker can write to this location
             string? dir = Path.GetDirectoryName(path);
-            if (dir != null && Native.AclChecker.IsDirectoryWritableByCurrentUser(dir))
+            if (dir != null && Native.AclChecker.IsDirectoryWritableByStandardUser(dir, runAsAccount))
             {
                 hijackable.Add(path);
             }
