@@ -1,5 +1,4 @@
 using DLLHijackHunter.Models;
-using Microsoft.Win32;
 
 namespace DLLHijackHunter.Filters;
 
@@ -68,15 +67,9 @@ public class ApiSetSchemaFilter : IHardGate
     {
         var apiSets = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        // Read from registry — most reliable source
-        try
-        {
-            using var key = Registry.LocalMachine.OpenSubKey(
-                @"SYSTEM\CurrentControlSet\Control\Session Manager\ApiSetSchemaExtensions");
-            // Note: API sets are primarily resolved from memory-mapped section
-            // loaded by ntdll. For our purposes, prefix matching is sufficient.
-        }
-        catch { }
+        // Note: API sets are resolved by ntdll from a memory-mapped section, not from a
+        // registry key. We rely on prefix matching plus enumeration of the on-disk
+        // api-ms-*/ext-ms-* stubs in System32, which is sufficient for this hard gate.
 
         // Known API set prefixes (comprehensive list)
         string[] knownPrefixes =

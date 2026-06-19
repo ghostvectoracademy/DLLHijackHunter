@@ -60,11 +60,12 @@ public class WritabilityFilter : IHardGate
             if (c.Type == HijackType.DotLocal)
             {
                 string? dotLocalParent = Path.GetDirectoryName(Path.GetDirectoryName(targetPath));
-                writable = dotLocalParent != null && AclChecker.IsDirectoryWritableByCurrentUser(dotLocalParent);
+                writable = dotLocalParent != null &&
+                    AclChecker.IsDirectoryWritableByStandardUser(dotLocalParent, c.RunAsAccount);
             }
             else
             {
-                writable = AclChecker.CanWriteFile(targetPath);
+                writable = AclChecker.CanWriteFile(targetPath, c.RunAsAccount);
             }
 
             c.FilterResults["Writability"] = writable ? FilterResult.Passed : FilterResult.Failed;

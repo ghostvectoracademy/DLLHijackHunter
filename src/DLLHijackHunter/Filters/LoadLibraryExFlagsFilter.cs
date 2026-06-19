@@ -12,18 +12,12 @@ public class LoadLibraryExFlagsFilter : ISoftGate
 {
     public string Name => "LoadLibraryEx Flags";
 
-    // Cache PE analysis results to avoid re-parsing
-    private readonly Dictionary<string, PEAnalysisResult> _cache = new(StringComparer.OrdinalIgnoreCase);
-
     public (double penalty, string? reason) Evaluate(HijackCandidate candidate)
     {
         try
         {
-            if (!_cache.TryGetValue(candidate.BinaryPath, out var pe))
-            {
-                pe = PEAnalyzer.Analyze(candidate.BinaryPath);
-                _cache[candidate.BinaryPath] = pe;
-            }
+            // PEAnalyzer.Analyze is globally memoized, so a local cache is unnecessary.
+            var pe = PEAnalyzer.Analyze(candidate.BinaryPath);
 
             if (pe.AnalysisError != null)
             {
@@ -54,20 +48,11 @@ public class LoadLibraryExFlagsFilter : ISoftGate
             }
 
             // Check 3: Does the binary call SetDllDirectory?
-            // SetDllDirectory("") removes CWD from search order.
-            // SetDllDirectory("path") adds a specific directory.
+            // SetDllDirectory("") removes CWD from search order; SetDllDirectory("path")
+            // adds a specific directory. Its main effect is on CWD-based loads, which this
+            // tool does not currently produce as candidates, so impact here is minimal.
             if (pe.CallsSetDllDirectory)
             {
-                // Only relevant for CWD hijacks
-                if (candidate.Type == HijackType.CWD)
-                {
-                    candidate.LoadLibAnalysisConfidence = AnalysisConfidence.IndirectCall;
-                    candidate.FilterResults["LoadLibFlags"] = FilterResult.Failed;
-                    return (25, "Binary calls SetDllDirectory() — likely removes CWD " +
-                               "from search order, blocking CWD-based hijacking.");
-                }
-
-                // For non-CWD hijacks, SetDllDirectory is less relevant
                 candidate.FilterResults["LoadLibFlags"] = FilterResult.Passed;
                 return (5, "Binary calls SetDllDirectory() — minimal impact on " +
                           "non-CWD based hijacking.");

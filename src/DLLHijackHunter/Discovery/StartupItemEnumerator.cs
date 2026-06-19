@@ -44,6 +44,9 @@ public static class StartupItemEnumerator
         // AppInit_DLLs
         EnumerateAppInitDlls(results);
 
+        // AppCertDlls
+        EnumerateAppCertDlls(results);
+
         // IFEO
         EnumerateIFEO(results);
 
@@ -156,6 +159,40 @@ public static class StartupItemEnumerator
                     TriggerType = TriggerType.Startup,
                     TriggerIdentifier = "AppInit_DLLs",
                     DisplayName = "AppInit_DLLs: " + Path.GetFileName(dllPath),
+                    RunAsAccount = "ALL_PROCESSES",
+                    IsAutoStart = true
+                });
+            }
+        }
+        catch { }
+    }
+
+    private static void EnumerateAppCertDlls(List<DiscoveryContext> results)
+    {
+        try
+        {
+            // Every DLL listed here is loaded into any process that calls CreateProcess,
+            // CreateProcessAsUser, CreateProcessWithLogonW or WinExec — i.e. virtually every
+            // process. The value name is arbitrary; the value data is the DLL path. An attacker
+            // who can write the referenced DLL gets code execution in those processes.
+            using var key = Registry.LocalMachine.OpenSubKey(
+                @"SYSTEM\CurrentControlSet\Control\Session Manager\AppCertDlls");
+            if (key == null) return;
+
+            foreach (var valueName in key.GetValueNames())
+            {
+                if (key.GetValue(valueName) is not string rawDllPath ||
+                    string.IsNullOrWhiteSpace(rawDllPath))
+                    continue;
+
+                string dllPath = Environment.ExpandEnvironmentVariables(rawDllPath.Trim().Trim('"'));
+
+                results.Add(new DiscoveryContext
+                {
+                    BinaryPath = dllPath,
+                    TriggerType = TriggerType.Startup,
+                    TriggerIdentifier = "AppCertDlls",
+                    DisplayName = "AppCertDlls: " + Path.GetFileName(dllPath),
                     RunAsAccount = "ALL_PROCESSES",
                     IsAutoStart = true
                 });
