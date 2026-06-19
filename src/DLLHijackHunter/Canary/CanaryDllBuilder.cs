@@ -1,3 +1,4 @@
+using System.Reflection;
 using DLLHijackHunter.Discovery;
 
 namespace DLLHijackHunter.Canary;
@@ -9,195 +10,196 @@ public static class CanaryDllBuilder
             "DLLHijackHunter");
 
     /// <summary>
-    /// Build a canary DLL that writes a confirmation file when DllMain executes.
+    /// Obtain a canary DLL for the given candidate's deploy location.
+    ///
+    /// Default path: extract the embedded, precompiled, self-locating canary for the victim's
+    /// architecture — no compiler required. The canary derives its confirmation-file path at
+    /// runtime from its own loaded module path (see <see cref="GetConfirmPath"/>), so one binary
+    /// per architecture serves every candidate.
+    ///
+    /// When the real DLL exists and exposes exports, a *functional proxy* (export-forwarding)
+    /// canary is preferable because it keeps the host process alive — but that requires per-DLL
+    /// compilation, so it is only attempted when an MSVC toolchain is present and falls back to
+    /// the precompiled canary otherwise.
     /// </summary>
+    /// <param name="deployPath">The path the canary will be copied to (the victim's hijack
+    /// position). The canary's runtime confirmation path is derived from this, so it MUST be the
+    /// exact path the DLL is loaded from.</param>
     public static CanaryDllInfo BuildCanary(string canaryId, string dllName,
-        string? originalDllPath, bool is64Bit)
+        string? originalDllPath, bool is64Bit, string deployPath)
     {
         Directory.CreateDirectory(CanaryDir);
 
-        string confirmPath = Path.Combine(CanaryDir, $"{canaryId}.confirm");
+        string confirmPath = GetConfirmPath(deployPath);
         string canaryDllPath = Path.Combine(CanaryDir, $"canary_{canaryId}.dll");
 
-        // Generate C source for canary
-        string source = GenerateCanarySource(canaryId, confirmPath, originalDllPath);
+        bool proxyDesired = originalDllPath != null && File.Exists(originalDllPath)
+                            && PEAnalyzer.GetExports(originalDllPath).Any();
 
-        // Write source file
-        string sourcePath = Path.Combine(CanaryDir, $"canary_{canaryId}.c");
-        File.WriteAllText(sourcePath, source);
+        // 1) Functional proxy — only when the toolchain is available.
+        if (proxyDesired)
+        {
+            string source = GenerateCanarySource(originalDllPath);
+            string sourcePath = Path.Combine(CanaryDir, $"canary_{canaryId}.c");
+            File.WriteAllText(sourcePath, source);
+            if (CompileCanary(sourcePath, canaryDllPath, is64Bit))
+            {
+                return new CanaryDllInfo
+                {
+                    CanaryId = canaryId,
+                    DllPath = canaryDllPath,
+                    ConfirmPath = confirmPath,
+                    SourcePath = sourcePath,
+                    IsProxy = true
+                };
+            }
+            ScanLogger.Warn("[Canary] No MSVC toolchain for a functional proxy; using the " +
+                "precompiled canary (confirms the load but does not preserve host functionality).");
+        }
 
-        // Compile using available compiler
-        bool compiled = CompileCanary(sourcePath, canaryDllPath, is64Bit, originalDllPath);
-
-        if (!compiled)
+        // 2) Default: precompiled, self-locating canary embedded for the victim's bitness.
+        if (TryExtractPrecompiled(is64Bit, canaryDllPath))
         {
             return new CanaryDllInfo
             {
                 CanaryId = canaryId,
-                DllPath = "", // empty — signals that DLL compilation failed
+                DllPath = canaryDllPath,
                 ConfirmPath = confirmPath,
-                SourcePath = sourcePath,
-                IsProxy = originalDllPath != null
+                SourcePath = "",
+                IsProxy = false
             };
         }
 
-        return new CanaryDllInfo
+        // 3) Last resort: compile a non-proxy canary from the bundled source (only reachable if
+        //    the embedded binary is missing — e.g. a stripped build).
         {
-            CanaryId = canaryId,
-            DllPath = canaryDllPath,
-            ConfirmPath = confirmPath,
-            SourcePath = sourcePath,
-            IsProxy = originalDllPath != null
-        };
-    }
-
-    private static string GenerateCanarySource(string canaryId, string confirmPath,
-        string? originalDllPath)
-    {
-        string escapedConfirmPath = confirmPath.Replace("\\", "\\\\");
-        string escapedCanaryDir = CanaryDir.Replace("\\", "\\\\");
-
-        var sb = new System.Text.StringBuilder();
-
-        sb.AppendLine("#include <windows.h>");
-        sb.AppendLine("#include <stdio.h>");
-        sb.AppendLine("#include <time.h>");
-        sb.AppendLine();
-        sb.AppendLine($"#define CANARY_ID \"{canaryId}\"");
-        sb.AppendLine($"#define CONFIRM_PATH \"{escapedConfirmPath}\"");
-        sb.AppendLine($"#define CONFIRM_DIR \"{escapedCanaryDir}\"");
-        sb.AppendLine();
-
-        sb.AppendLine(@"
-static void WriteConfirmation(void)
-{
-    CreateDirectoryA(CONFIRM_DIR, NULL);
-
-    HANDLE hFile = CreateFileA(CONFIRM_PATH, GENERIC_WRITE, 0, NULL,
-                               CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
-    if (hFile == INVALID_HANDLE_VALUE) return;
-
-    char buf[4096];
-    char procPath[MAX_PATH] = {0};
-    GetModuleFileNameA(NULL, procPath, MAX_PATH);
-    DWORD pid = GetCurrentProcessId();
-
-    char username[256] = ""UNKNOWN"";
-    char domain[256] = """";
-    DWORD userLen = sizeof(username);
-    DWORD domLen = sizeof(domain);
-    const char *integrity = ""Unknown"";
-    BOOL hasDebug = FALSE;
-
-    HANDLE hToken = NULL;
-    if (OpenProcessToken(GetCurrentProcess(), 0x0008, &hToken))
-    {
-        BYTE tokenUser[512];
-        DWORD retLen = 0;
-        if (GetTokenInformation(hToken, TokenUser, tokenUser, sizeof(tokenUser), &retLen))
-        {
-            SID_NAME_USE sidType;
-            LookupAccountSidA(NULL, ((TOKEN_USER*)tokenUser)->User.Sid,
-                            username, &userLen, domain, &domLen, &sidType);
-        }
-
-        BYTE tokenIL[512];
-        if (GetTokenInformation(hToken, TokenIntegrityLevel, tokenIL, sizeof(tokenIL), &retLen))
-        {
-            PDWORD pIL = GetSidSubAuthority(
-                ((TOKEN_MANDATORY_LABEL*)tokenIL)->Label.Sid,
-                *GetSidSubAuthorityCount(((TOKEN_MANDATORY_LABEL*)tokenIL)->Label.Sid) - 1);
-            DWORD il = *pIL;
-            if (il >= 0x4000) integrity = ""System"";
-            else if (il >= 0x3000) integrity = ""High"";
-            else if (il >= 0x2000) integrity = ""Medium"";
-            else integrity = ""Low"";
-        }
-
-        LUID debugLuid;
-        if (LookupPrivilegeValueA(NULL, ""SeDebugPrivilege"", &debugLuid))
-        {
-            PRIVILEGE_SET privs;
-            privs.PrivilegeCount = 1;
-            privs.Control = 1;
-            privs.Privilege[0].Luid = debugLuid;
-            privs.Privilege[0].Attributes = 0;
-            PrivilegeCheck(hToken, &privs, &hasDebug);
-        }
-
-        CloseHandle(hToken);
-    }
-
-    int len = snprintf(buf, sizeof(buf),
-        ""[DllHijackHunter] Target: %s | DLL: %s | Action: %s\n""
-        ""CANARY_ID=%s\n""
-        ""PROCESS=%s\n""
-        ""PID=%lu\n""
-        ""USER=%s\\%s\n""
-        ""INTEGRITY=%s\n""
-        ""SE_DEBUG=%s\n""
-        ""TIMESTAMP=%lu\n"",
-        ""UNKNOWN"", ""UNKNOWN"", ""UNKNOWN"", // Placeholder for Target, DLL, Action
-        CANARY_ID, procPath, pid, domain, username,
-        integrity, hasDebug ? ""YES"" : ""NO"",
-        (unsigned long)time(NULL));
-
-    DWORD written;
-    WriteFile(hFile, buf, (DWORD)len, &written, NULL);
-    CloseHandle(hFile);
-}");
-
-        sb.AppendLine();
-
-        sb.AppendLine(@"
-BOOL APIENTRY DllMain(HMODULE hModule, DWORD reason, LPVOID lpReserved)
-{
-    if (reason == DLL_PROCESS_ATTACH)
-    {
-        DisableThreadLibraryCalls(hModule);
-        WriteConfirmation();
-    }
-    return TRUE;
-}");
-
-        // Proxy exports for search order hijacks
-        if (originalDllPath != null && File.Exists(originalDllPath))
-        {
-            var exports = PEAnalyzer.GetExports(originalDllPath);
-            if (exports.Any())
+            string source = GenerateCanarySource(null);
+            string sourcePath = Path.Combine(CanaryDir, $"canary_{canaryId}.c");
+            File.WriteAllText(sourcePath, source);
+            bool compiled = CompileCanary(sourcePath, canaryDllPath, is64Bit);
+            return new CanaryDllInfo
             {
-                sb.AppendLine();
-                sb.AppendLine("// ─── Export forwards to original DLL ───");
-
-                string originalForward = originalDllPath.Replace("\\", "\\\\");
-                string baseName = Path.GetFileNameWithoutExtension(originalForward);
-
-                foreach (var export in exports)
-                {
-                    if (!string.IsNullOrEmpty(originalForward))
-                    {
-                        // WARNING (EXPERIMENTAL): Name-only export forwarding is highly brittle 
-                        // and may fail for decorated names, ordinals, or complex forwarded exports. 
-                        // This proxy generation is STRICTLY best-effort / experimental. Host 
-                        // process crashes are possible if the original DLL expects strict layouts.
-                        string forwardBaseName = System.IO.Path.GetFileNameWithoutExtension(originalForward);
-                        sb.AppendLine($"#pragma comment(linker, \"/export:{export}={forwardBaseName}.{export}\")");
-                    }
-                }
-            }
+                CanaryId = canaryId,
+                DllPath = compiled ? canaryDllPath : "",
+                ConfirmPath = confirmPath,
+                SourcePath = sourcePath,
+                IsProxy = false
+            };
         }
+    }
+
+    /// <summary>
+    /// Confirmation-file path for a canary deployed to <paramref name="deployPath"/>. Must stay
+    /// byte-for-byte in sync with the self-location logic in Resources/canary_src.c:
+    /// <c>%ProgramData%\DLLHijackHunter\canary_&lt;fnv1a64(lowercased deploy path)&gt;.confirm</c>.
+    /// </summary>
+    public static string GetConfirmPath(string deployPath) =>
+        Path.Combine(CanaryDir, $"canary_{DeployHash(deployPath)}.confirm");
+
+    /// <summary>
+    /// FNV-1a 64-bit over the ASCII deploy path with A-Z folded to a-z, formatted as 16 lowercase
+    /// hex digits. Mirrors <c>fnv1a()</c> in Resources/canary_src.c exactly. ASCII paths only.
+    /// </summary>
+    internal static string DeployHash(string path)
+    {
+        ulong h = 0xcbf29ce484222325UL;
+        foreach (char c in path)
+        {
+            int b = c & 0xFF;
+            if (b >= 'A' && b <= 'Z') b += 0x20;
+            h ^= (byte)b;
+            h *= 0x100000001b3UL;
+        }
+        return h.ToString("x16");
+    }
+
+    private static bool TryExtractPrecompiled(bool is64Bit, string outputPath)
+    {
+        string leaf = is64Bit ? "canary_x64.dll" : "canary_x86.dll";
+        try
+        {
+            var asm = Assembly.GetExecutingAssembly();
+            string? name = asm.GetManifestResourceNames()
+                .FirstOrDefault(n => n.EndsWith(leaf, StringComparison.OrdinalIgnoreCase));
+            if (name == null)
+            {
+                ScanLogger.Warn($"[Canary] Embedded precompiled canary '{leaf}' not found.");
+                return false;
+            }
+
+            using var s = asm.GetManifestResourceStream(name);
+            if (s == null) return false;
+            using var fs = File.Create(outputPath);
+            s.CopyTo(fs);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            ScanLogger.Warn($"[Canary] Could not extract precompiled canary: {ex.Message}");
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Build C source for a functional proxy canary: the shared self-locating body (bundled as
+    /// Resources/canary_src.c, so it cannot drift from the precompiled binary) plus name-only
+    /// export forwards to the original DLL.
+    /// </summary>
+    private static string GenerateCanarySource(string? originalDllPath)
+    {
+        string body = LoadCanarySource();
+        if (originalDllPath == null || !File.Exists(originalDllPath))
+            return body;
+
+        var exports = PEAnalyzer.GetExports(originalDllPath);
+        if (!exports.Any())
+            return body;
+
+        var sb = new System.Text.StringBuilder(body);
+        sb.AppendLine();
+        sb.AppendLine("// ─── Export forwards to original DLL (EXPERIMENTAL, name-only) ───");
+        // WARNING: name-only forwarding is brittle for ordinals/decorated names and may crash a
+        // host that expects strict export layouts. Best-effort only.
+        string forwardBaseName = Path.GetFileNameWithoutExtension(originalDllPath);
+        foreach (var export in exports)
+            sb.AppendLine($"#pragma comment(linker, \"/export:{export}={forwardBaseName}.{export}\")");
 
         return sb.ToString();
     }
 
-    private static bool CompileCanary(string sourcePath, string outputPath, bool is64Bit,
-        string? originalDllPath)
+    private static string? _cachedSource;
+
+    private static string LoadCanarySource()
+    {
+        if (_cachedSource != null) return _cachedSource;
+        try
+        {
+            var asm = Assembly.GetExecutingAssembly();
+            string? name = asm.GetManifestResourceNames()
+                .FirstOrDefault(n => n.EndsWith("canary_src.c", StringComparison.OrdinalIgnoreCase));
+            if (name != null)
+            {
+                using var s = asm.GetManifestResourceStream(name);
+                if (s != null)
+                {
+                    using var reader = new StreamReader(s);
+                    _cachedSource = reader.ReadToEnd();
+                    return _cachedSource;
+                }
+            }
+        }
+        catch { }
+        _cachedSource = "";
+        return _cachedSource;
+    }
+
+    private static bool CompileCanary(string sourcePath, string outputPath, bool is64Bit)
     {
         // The canary MUST match the victim process bitness or it will silently fail to load.
-        // cl.exe's target architecture is selected by its toolchain environment (vcvarsall),
-        // NOT by a command-line flag — so we locate vcvarsall.bat and initialise the correct
-        // target ("x64" vs "x86") before invoking cl.exe through cmd. This both honours the
-        // detected bitness and lets the canary build without a pre-opened developer prompt.
+        // cl.exe's target architecture is selected by its toolchain environment (vcvarsall), NOT
+        // by a command-line flag — so we locate vcvarsall.bat and initialise the correct target
+        // ("x64" vs "x86") before invoking cl.exe through cmd. This both honours the detected
+        // bitness and lets the canary build without a pre-opened developer prompt.
         string targetArch = is64Bit ? "x64" : "x86";
         string clArgs = $"/LD /Fe:\"{outputPath}\" \"{sourcePath}\" " +
                         "advapi32.lib kernel32.lib /link /DLL /NOLOGO";
@@ -219,11 +221,7 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD reason, LPVOID lpReserved)
         // Its target architecture is whatever that prompt set up and may not match is64Bit.
         string? compiler = FindInPath("cl.exe");
         if (compiler == null)
-        {
-            ScanLogger.Warn("[Canary] No MSVC toolchain found (vcvarsall + cl.exe both absent); " +
-                "cannot build canary.");
             return false;
-        }
 
         ScanLogger.Warn($"[Canary] Using cl.exe on PATH — its target arch may not match the " +
             $"required {targetArch} victim bitness.");

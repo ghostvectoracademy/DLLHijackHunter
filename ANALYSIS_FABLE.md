@@ -323,7 +323,7 @@ Continued through priorities §E.2–E.5 plus the §F performance finding.
 
 ### Still open (not addressed this round)
 
-- **D2** — ship signed, precompiled dual-arch canaries so Phase 3 works with no compiler at all (the `vcvarsall` fix still requires VS C++ tools present).
+- **D2** — ✅ done (2026-06-20): precompiled dual-arch canaries are embedded; Phase 3 confirms loads with no compiler. See "Precompiled self-locating canaries" below. Code-signing the binaries remains a release-time step (needs a cert).
 - **D3** — ✅ done: KB is now data-driven and ships the full HijackLibs snapshot (see below). Only a license-terms confirmation remains for the maintainer.
 - **IFEO** — *assessed, intentionally not changed.* The enumerator treats an existing Debugger value as a binary to PE-analyze, which for a *DLL-hijack* tool is actually a valid angle (the debugger EXE's own imports may be hijackable). Flagging the attacker-writable IFEO *key* instead is an EXE-redirection/persistence technique, not a DLL hijack, and would require a registry-ACL check the codebase doesn't have (IFEO lives under HKLM and needs admin to write, so the attacker-relative model would filter it on a normal host anyway). Out of scope for this tool's mission; documented in the README.
 
@@ -363,6 +363,25 @@ Replaced the 10-entry hand-made subset with the **full HijackLibs export** fetch
 - Tests updated to real combos present in the dataset (`AcroDist.exe`+`acrodistdll.dll`) and assert `EntryCount > 100`. Build **0 warnings**; tests **7/7**.
 
 > **Caveat for the maintainer:** confirm HijackLibs' license/attribution terms are compatible with redistributing the dataset inside this MIT project before publishing a release. The data is attributed to the HijackLibs project in the README; verify that satisfies their terms.
+
+### Precompiled self-locating canaries (D2 complete, 2026-06-20)
+
+Closed §D2 / §E3's remaining half: **Phase 3 now confirms a DLL load with no compiler present.**
+
+The blocker for a precompiled canary was that the legacy build baked per-run state (canary id, confirm path) into the C source at compile time. The fix makes the canary **self-locating**: at `DLL_PROCESS_ATTACH` it reads its own loaded module path (`GetModuleFileNameA`), hashes it (FNV-1a 64, A–Z folded to a–z), and writes `%ProgramData%\DLLHijackHunter\canary_<hash>.confirm`. The scanner computes the **same** hash from the path it deployed to and polls for that file — so a single binary per architecture serves every candidate, identity coming from the deploy location rather than a compile-time constant.
+
+- **New auditable source** `Resources/canary_src.c` — the self-locating canary (kernel32 + advapi32; same token/integrity/SeDebug enrichment as the legacy generated source). Compiled once to **`Resources/canary_x64.dll`** and **`Resources/canary_x86.dll`** (`/MT`, static CRT → no ucrtbase/vcruntime dependency on the victim), both embedded (`DLLHijackHunter.csproj`). Reproducible via `Resources/build_canary.bat` (needs MSVC; the scanner does not).
+- **`Canary/CanaryDllBuilder.cs`** rewritten:
+  - `DeployHash` / `GetConfirmPath` mirror the C hash byte-for-byte.
+  - `BuildCanary(…, string deployPath)` routes: (1) if the real DLL exists with exports **and** MSVC is available → compile a functional export-forwarding proxy; (2) else → extract the embedded precompiled canary for the victim bitness (default, no compiler); (3) last resort → compile a non-proxy canary from the bundled source. `GenerateCanarySource` now loads `canary_src.c` from the embedded resource (so the proxy variant cannot drift from the precompiled binary) and only appends the export `#pragma`s.
+- **`Canary/CanaryEngine.cs`** — passes the deploy path; clears any stale confirm file before deploying (so a prior run can't be mistaken for this one); notes when a proxy was wanted but the precompiled non-proxy was used (confirms the load, host may crash); the "no compiler" message now only fires if the embedded binary is somehow absent.
+
+**Proof (this host has MSVC but no installed Windows SDK; SDK headers/libs pulled from the official `Microsoft.Windows.SDK.CPP*` NuGet packages to compile):**
+- Both DLLs verified as correct PE machine types (x64 → 0x8664, x86 → 0x14c) and embedded under `DLLHijackHunter.Resources.canary_x{64,86}.dll`.
+- **Cross-language end-to-end:** copied `canary_x64.dll` to an arbitrary temp path, `LoadLibrary`'d it, and the canary wrote exactly `canary_ff18a7bf673bd7c2.confirm` — the **same** name the real C# `DeployHash` predicted for that path — with full enrichment (`USER=…`, `INTEGRITY=Medium`, `SE_DEBUG=NO`). Proves C ↔ C# hash agreement and that self-location + confirmation work with zero compiler at scan time.
+- `dotnet build -c Release -f net8.0-windows` → **0 warnings, 0 errors**; `dotnet test` → **7/7**.
+
+Remaining: **code-signing** the embedded canaries (needs a certificate; release-time step) and optional precompiled *proxy* variants (export forwarding is inherently per-DLL, so it stays compiler-backed).
 
 ### README honesty pass (done, 2026-06-19)
 

@@ -132,7 +132,7 @@ sequenceDiagram
     participant V as Victim Binary
 
     H->>B: Build canary DLL
-    B->>B: Compile with MSVC (cl.exe)
+    B->>B: Extract precompiled canary<br/>(or compile a proxy with MSVC)
     B-->>H: canary.dll + confirmation file path
     H->>H: Place DLL at hijack path
     H->>T: Trigger binary execution
@@ -144,12 +144,18 @@ sequenceDiagram
 ```
 
 The canary DLL:
-- Is built with **MSVC (`cl.exe`)** — the Visual Studio C++ build tools must be present on the host. The tool locates the toolchain via `vswhere` and initializes the correct target architecture (x64/x86, matched to the victim's bitness) through `vcvarsall.bat`, so a developer command prompt is **not** required — but if no MSVC toolchain is installed, canary confirmation is skipped and findings remain unverified (`NotTested`).
+- Ships **precompiled for both x64 and x86**, embedded in the scanner, so **no compiler is required at scan time**. The correct architecture is selected to match the victim's bitness and extracted on demand.
+- Is **self-locating**: it derives its confirmation-file path at runtime from its own loaded module path (`%ProgramData%\DLLHijackHunter\canary_<hash>.confirm`), so one binary serves every candidate. The scanner computes the same hash from the deploy path and polls for that file.
 - Uses a **file-based confirmation mechanism**
 - Captures execution metadata such as user, integrity level, and privilege indicators
 - Contains no malicious payload; it is strictly a detection and validation mechanism
+- Statically links the CRT, so it has **no runtime dependency** (ucrtbase/vcruntime) on the victim host.
 
-> **Requirement:** Phase 3 (canary confirmation) needs the MSVC C++ toolchain on the target. On a host without Visual Studio Build Tools, all findings are reported as `NotTested` and confidence is derived from static/ETW signals only. Precompiled, signed dual-architecture canaries (removing the compiler dependency entirely) are planned.
+The bundled binaries are built from the auditable source at `src/DLLHijackHunter/Resources/canary_src.c` and can be regenerated with `Resources/build_canary.bat` (requires the MSVC C++ toolchain; the scanner does **not**).
+
+> **Functional-proxy exception:** When a search-order hijack targets a DLL that *exists* and exposes exports, keeping the host alive after confirmation requires an export-forwarding **proxy**, which is compiled per-DLL with MSVC (`cl.exe`, located via `vswhere`/`vcvarsall`). If no toolchain is present, the precompiled canary is used instead — it still **confirms the load** (DllMain fires) but does not forward exports, so the host process may crash after the confirmation is recorded. Phantom-DLL and other no-export candidates need no compiler at all.
+
+> **Signing:** The embedded canaries are unsigned. Code-signing them (so they load under stricter policies and are attributable) requires a signing certificate and is left as a release-time step for the maintainer.
 
 ### Important note on proxy/export-forwarding mode
 
@@ -188,7 +194,7 @@ That means a failed proxy canary does **not always** mean the underlying hijack 
 | Self-contained binary | ✅ | ❌ | ❌ | ✅ | ❌ |
 
 <sub>
-¹ Requires the MSVC C++ toolchain on the host; without it, findings stay `NotTested`.<br/>
+¹ Precompiled dual-arch canaries are embedded — **no compiler needed** to confirm a load. Only the optional export-forwarding *proxy* (to keep an export-consuming host alive) needs MSVC.<br/>
 ² Via attacker-relative ACL writability (see Filter Pipeline). It reduces — it does not eliminate — false positives; soft-gate heuristics (manifest/SxS/LoadLibraryEx) still carry uncertainty. Unverified static findings are now capped below the **High** tier.<br/>
 ³ Derived from auto-start status, not a verified reboot test.<br/>
 ⁴ Export-forwarding proxy is experimental/best-effort (see note above).<br/>

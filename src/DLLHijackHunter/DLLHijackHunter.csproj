@@ -27,6 +27,11 @@
   <ItemGroup>
     <EmbeddedResource Include="Resources\phantom_dlls.json" />
     <EmbeddedResource Include="Resources\hijacklibs.json" />
+    <!-- Precompiled self-locating canaries (no compiler needed at scan time) and the
+         auditable source they are built from. Rebuild via Resources\build_canary.bat. -->
+    <EmbeddedResource Include="Resources\canary_x64.dll" />
+    <EmbeddedResource Include="Resources\canary_x86.dll" />
+    <EmbeddedResource Include="Resources\canary_src.c" />
   </ItemGroup>
 
 </Project>

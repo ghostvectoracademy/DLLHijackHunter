@@ -96,26 +96,44 @@ public class CanaryEngine
             {
             }
 
-            // Build canary DLL
+            // Build canary DLL. The confirmation path is derived from the deploy location
+            // (HijackWritablePath), which is exactly where the canary will be loaded from.
             var canaryInfo = CanaryDllBuilder.BuildCanary(
                 canaryId,
                 candidate.DllName,
                 candidate.DllLegitPath,
-                is64Bit
+                is64Bit,
+                candidate.HijackWritablePath
             );
 
-            // If we're proxying, add a note about fragility
+            bool proxyDesired = candidate.DllLegitPath != null &&
+                                File.Exists(candidate.DllLegitPath);
             if (canaryInfo.IsProxy)
             {
                 candidate.Notes.Add("WARNING (EXPERIMENTAL): Canary generated as a Proxy DLL. Export forwarding uses basic name-only forwarding. This is a best-effort, heuristic implementation that may crash the host process if ordinals or decorated names are required.");
             }
+            else if (proxyDesired)
+            {
+                candidate.Notes.Add("Canary is the precompiled non-proxy build: it confirms the DLL load but does not forward the original exports, so the host process may crash after confirmation (no MSVC toolchain was available to build a functional proxy).");
+            }
 
-            // Check if DLL was built successfully
+            // Check if DLL was obtained successfully
             if (string.IsNullOrEmpty(canaryInfo.DllPath) || !File.Exists(canaryInfo.DllPath))
             {
                 candidate.CanaryResult = CanaryResult.NotTested;
-                candidate.Notes.Add("Could not build canary DLL — no C compiler (cl.exe) available.");
+                candidate.Notes.Add("Could not obtain a canary DLL (embedded precompiled canary missing and no MSVC toolchain available).");
                 return;
+            }
+
+            // Clear any stale confirmation file at the derived path so a previous run cannot be
+            // mistaken for this one.
+            try
+            {
+                if (File.Exists(canaryInfo.ConfirmPath))
+                    File.Delete(canaryInfo.ConfirmPath);
+            }
+            catch
+            {
             }
 
             // Backup existing DLL if present
