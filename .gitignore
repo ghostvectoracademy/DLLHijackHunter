@@ -16,3 +16,14 @@ hijackhunter_*.json
 scan_*.txt
 scan_*.json
 *_scan_*.json
+safe_scan_fable.json
+
+# build / debug outputs
+*.dll
+*.pdb
+truth.json
+score_report*.txt
+
+# keep committed embedded-resource canaries (built from auditable canary_src.c)
+!src/DLLHijackHunter/Resources/canary_x64.dll
+!src/DLLHijackHunter/Resources/canary_x86.dll
