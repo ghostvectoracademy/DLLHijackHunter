@@ -1,3 +1,5 @@
+> Internal audit (Claude Code, Opus). Status: findings largely addressed; see fix log.
+
 # DLLHijackHunter — Independent Code Analysis
 
 *Analyst: Claude (Fable). Scope: complete read of all 40 `.cs` source files + embedded resources, plus an actual `dotnet build` and a `--profile safe` run on the host. Every claim is cited `file:line`. Conclusions are my own; I did not consult any prior analysis.*
