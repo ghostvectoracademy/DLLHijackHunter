@@ -1,6 +1,5 @@
 bin/
 obj/
-docs/
 *.user
 *.suo
 .vs/
@@ -28,3 +27,17 @@ score_report*.txt
 # keep committed embedded-resource canaries (built from auditable canary_src.c)
 !src/DLLHijackHunter/Resources/canary_x64.dll
 !src/DLLHijackHunter/Resources/canary_x86.dll
+
+# scratch / dev session artifacts
+runtime_analysis/
+_to_delete/
+run_admin.bat
+run_admin.ps1
+run_matrix.bat
+run_matrix.ps1
+
+# Claude session settings
+.claude/
+
+# AI analysis artifacts
+docs/analysis/
