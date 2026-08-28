@@ -25,23 +25,50 @@ namespace DLLHijackHunter.Verification;
 /// </summary>
 public static class LoadProbe
 {
+    // Traditional (non-opt-in) search: SetCurrentDirectory positions the DLL in
+    // the CWD slot of the classic search order, then LoadLibraryW resolves it
+    // without any SEARCH_* flags — faithfully modelling how most services load.
+    [System.Runtime.InteropServices.DllImport("kernel32.dll",
+        SetLastError = true, CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
+    private static extern bool SetCurrentDirectory(string lpPathName);
+
+    [System.Runtime.InteropServices.DllImport("kernel32.dll",
+        SetLastError = true, CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
+    private static extern IntPtr LoadLibraryW(string lpLibFileName);
+
     /// <summary>
     /// Child-process entry point. Adds <paramref name="addDir"/> to the DLL search path, resolves
     /// <paramref name="dllName"/> via the loader, and prints "RESOLVED=&lt;path&gt;" or "NOTRESOLVED".
     /// </summary>
-    public static int RunChild(string addDir, string dllName)
+    /// <param name="traditional">
+    /// When <c>true</c> the child uses the classic Windows search order
+    /// (SetCurrentDirectory + LoadLibraryW with no flags) instead of the modern
+    /// opt-in LOAD_LIBRARY_SEARCH_* flags.  Pass for Service-triggered candidates
+    /// whose host binaries typically have not opted in to the secure search order.
+    /// </param>
+    public static int RunChild(string addDir, string dllName, bool traditional = false)
     {
         try
         {
-            if (Directory.Exists(addDir))
-                NativeMethods.AddDllDirectory(addDir);
+            IntPtr h;
+            if (traditional)
+            {
+                // Classic search order: place the writable directory as the current
+                // directory so it becomes slot 1 of the traditional 6-slot sequence.
+                if (Directory.Exists(addDir)) SetCurrentDirectory(addDir);
+                h = LoadLibraryW(dllName);
+            }
+            else
+            {
+                if (Directory.Exists(addDir))
+                    NativeMethods.AddDllDirectory(addDir);
 
-            uint flags = NativeMethods.LOAD_LIBRARY_SEARCH_USER_DIRS
-                       | NativeMethods.LOAD_LIBRARY_SEARCH_SYSTEM32
-                       | NativeMethods.LOAD_LIBRARY_SEARCH_DEFAULT_DIRS
-                       | NativeMethods.LOAD_LIBRARY_SEARCH_APPLICATION_DIR;
-
-            IntPtr h = NativeMethods.LoadLibraryExW(dllName, IntPtr.Zero, flags);
+                uint flags = NativeMethods.LOAD_LIBRARY_SEARCH_USER_DIRS
+                           | NativeMethods.LOAD_LIBRARY_SEARCH_SYSTEM32
+                           | NativeMethods.LOAD_LIBRARY_SEARCH_DEFAULT_DIRS
+                           | NativeMethods.LOAD_LIBRARY_SEARCH_APPLICATION_DIR;
+                h = NativeMethods.LoadLibraryExW(dllName, IntPtr.Zero, flags);
+            }
             if (h == IntPtr.Zero)
             {
                 Console.Out.Write("NOTRESOLVED");
@@ -144,7 +171,10 @@ public static class LoadProbe
             File.Copy(probeDll, target, true);
             placed = true;
 
-            string output = RunResolveChild(selfExe, dir!, dll, timeoutSec);
+            // Service binaries typically use the classic search order (no opt-in flags),
+            // so model that correctly rather than the modern SEARCH_USER_DIRS order.
+            bool useTraditional = c.Trigger == TriggerType.Service;
+            string output = RunResolveChild(selfExe, dir!, dll, timeoutSec, useTraditional);
 
             if (output.StartsWith("RESOLVED=", StringComparison.Ordinal))
             {
@@ -191,7 +221,8 @@ public static class LoadProbe
         }
     }
 
-    private static string RunResolveChild(string selfExe, string dir, string dll, int timeoutSec)
+    private static string RunResolveChild(string selfExe, string dir, string dll,
+        int timeoutSec, bool traditional = false)
     {
         try
         {
@@ -206,6 +237,7 @@ public static class LoadProbe
             psi.ArgumentList.Add("--resolve-probe");
             psi.ArgumentList.Add(dir);
             psi.ArgumentList.Add(dll);
+            if (traditional) psi.ArgumentList.Add("traditional");
 
             using var p = Process.Start(psi);
             if (p == null) return "NOTRESOLVED";

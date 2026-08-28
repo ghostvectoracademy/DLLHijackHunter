@@ -1,7 +1,6 @@
 using DLLHijackHunter.Models;
 using Microsoft.Win32;
 using System.Collections.Concurrent;
-using System.Text;
 
 namespace DLLHijackHunter.Discovery;
 
@@ -123,33 +122,28 @@ public static class AutoElevateEnumerator
         catch { }
     }
 
+    /// <summary>
+    /// Detects <c>&lt;autoElevate&gt;true&lt;/autoElevate&gt;</c> in the binary's
+    /// embedded manifest. Uses <see cref="PEAnalyzer"/>, which tries PeNet's RT_MANIFEST
+    /// resource extraction first and falls back to a raw-byte scan — so manifest content
+    /// is parsed consistently across the whole tool rather than re-read here separately.
+    /// </summary>
     private static bool IsAutoElevate(string filePath)
     {
         try
         {
-            using var fs = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+            var pe = PEAnalyzer.Analyze(filePath);
+            if (pe.AnalysisError != null) return false;
 
-            int readSize = (int)Math.Min(fs.Length, 2 * 1024 * 1024);
-            byte[] buffer = new byte[readSize];
-            fs.Read(buffer, 0, readSize);
-
-            string content = Encoding.UTF8.GetString(buffer);
-
-            int idx = content.IndexOf("autoElevate", StringComparison.OrdinalIgnoreCase);
-            if (idx < 0) return false;
-
-            // Extract a larger context window to validate XML structure
-            int start = Math.Max(0, idx - 20);
-            int end = Math.Min(content.Length, idx + 100);
-            string snippet = content[start..end];
-
-            // Validate it's actually an XML manifest element, not coincidental binary data
-            // HEURISTIC WARNING: This is a raw string search across the binary, not a formal
-            // RT_MANIFEST parse. It serves as a rapid, best-effort indicator.
-            return snippet.Contains("<autoElevate>true</autoElevate>", StringComparison.OrdinalIgnoreCase);
+            // PEAnalyzer.CheckForManifest runs: (1) PeNet RT_MANIFEST resource parse,
+            // (2) raw-byte fallback, (3) external .manifest file. Reuse its result
+            // rather than opening the file a second time.
+            return !string.IsNullOrEmpty(pe.ManifestContent) &&
+                   pe.ManifestContent.Contains(
+                       "<autoElevate>true</autoElevate>",
+                       StringComparison.OrdinalIgnoreCase);
         }
         catch { }
-
         return false;
     }
 }

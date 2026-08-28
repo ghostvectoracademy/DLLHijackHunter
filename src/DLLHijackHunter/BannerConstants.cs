@@ -12,7 +12,7 @@ public static class BannerConstants
         "[cyan1] / /_/ / /___/ /___/ __  / / / / /_/ / /__/ ,< / __  / /_/ / / / / /_/  __/ /    [/]",
         "[cyan1]/_____/_____/_____/_/ /_/_/_/ /\\__,_/\\___/_/|_/_/ /_/\\__,_/_/ /_/\\__/\\___/_/     [/]",
         "[cyan1]                         /___/                                                    [/]",
-        "[bold grey]                              By GhostVector Academy[/]",
+        "[bold grey]           By GhostVector Academy  ·  [link=https://projectmerai.com]projectmerai.com[/][/]",
     };
 
     public static void PrintBanner()
@@ -21,6 +21,6 @@ public static class BannerConstants
             AnsiConsole.MarkupLine(line);
 
         AnsiConsole.WriteLine();
-        AnsiConsole.MarkupLine("[dim]Automated DLL Hijacking Discovery & Triage — Attacker-Relative Writability[/]");
+        AnsiConsole.MarkupLine("[dim]Automated DLL Hijacking Discovery & Triage — Attacker-Relative Writability  |  [link=https://projectmerai.com]projectmerai.com[/][/]");
     }
 }

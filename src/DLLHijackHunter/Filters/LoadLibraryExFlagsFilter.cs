@@ -30,7 +30,7 @@ public class LoadLibraryExFlagsFilter : ISoftGate
             // This globally restricts the search order for the entire process.
             if (pe.CallsSetDefaultDllDirectories)
             {
-                candidate.LoadLibAnalysisConfidence = AnalysisConfidence.IndirectCall;
+                candidate.LoadLibAnalysisConfidence = AnalysisConfidence.Certain;
                 candidate.FilterResults["LoadLibFlags"] = FilterResult.Failed;
                 return (20, "Binary calls SetDefaultDllDirectories() — may restrict " +
                            "DLL search order globally for the process. " +
@@ -63,7 +63,7 @@ public class LoadLibraryExFlagsFilter : ISoftGate
             {
                 // It MIGHT use LOAD_LIBRARY_SEARCH_SYSTEM32 but we can't tell
                 // without disassembly. Apply small penalty since we're uncertain.
-                candidate.LoadLibAnalysisConfidence = AnalysisConfidence.IndirectCall;
+                candidate.LoadLibAnalysisConfidence = AnalysisConfidence.Unknown;
                 candidate.FilterResults["LoadLibFlags"] = FilterResult.Failed;
                 return (5, "Binary imports LoadLibraryEx — flags unknown without " +
                            "disassembly (heuristic assumption only).");
@@ -73,14 +73,14 @@ public class LoadLibraryExFlagsFilter : ISoftGate
             // Standard search order always applies.
             if (pe.UsesLoadLibrary && !pe.UsesLoadLibraryEx)
             {
-                candidate.LoadLibAnalysisConfidence = AnalysisConfidence.Certain;
+                candidate.LoadLibAnalysisConfidence = AnalysisConfidence.CertainDirect;
                 candidate.FilterResults["LoadLibFlags"] = FilterResult.Passed;
                 return (0, null); // Standard LoadLibrary — no secure flags possible
             }
 
             // Check 6: Binary doesn't call any LoadLibrary variant
-            // DLLs are loaded via import table — standard search order applies.
-            candidate.LoadLibAnalysisConfidence = AnalysisConfidence.Certain;
+            // DLLs are loaded via import table — standard search order always applies.
+            candidate.LoadLibAnalysisConfidence = AnalysisConfidence.CertainDirect;
             candidate.FilterResults["LoadLibFlags"] = FilterResult.Passed;
             return (0, null);
         }

@@ -9,7 +9,7 @@ public static class ReportGenerator
 {
     public static void GenerateConsoleReport(ScanResult result)
     {
-        AnsiConsole.Clear();
+        if (!Console.IsOutputRedirected) AnsiConsole.Clear();
         BannerConstants.PrintBanner();
         AnsiConsole.WriteLine();
 

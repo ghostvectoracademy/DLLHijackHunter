@@ -13,6 +13,12 @@
     <AssemblyName>DLLHijackHunter</AssemblyName>
     <RootNamespace>DLLHijackHunter</RootNamespace>
     <Version>2.1.0</Version>
+    <Authors>Project Merai</Authors>
+    <Company>Project Merai</Company>
+    <Product>DLLHijackHunter</Product>
+    <PackageProjectUrl>https://projectmerai.com/</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/ghostvectoracademy/DLLHijackHunter</RepositoryUrl>
+    <Copyright>Copyright © 2024-2026 Project Merai. All rights reserved.</Copyright>
     <Description>Automated DLL Hijacking Detection Tool for finding and verifying exploits</Description>
   </PropertyGroup>
 

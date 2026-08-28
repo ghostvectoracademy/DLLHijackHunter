@@ -382,6 +382,10 @@ public static class CanaryDllBuilder
                         try { File.Delete(file); } catch { }
                     }
                 }
+
+                // Remove the shared load-probe DLL (extracted once from embedded resources,
+                // cached across scans, never deleted until an explicit CleanupAll call).
+                try { File.Delete(Path.Combine(CanaryDir, "loadprobe.dll")); } catch { }
             }
         }
         catch { }

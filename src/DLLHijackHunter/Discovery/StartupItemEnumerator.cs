@@ -215,7 +215,8 @@ public static class StartupItemEnumerator
                 if (subkey == null) continue;
 
                 var debugger = subkey.GetValue("Debugger") as string;
-                var globalFlag = subkey.GetValue("GlobalFlag");
+                // Note: GlobalFlag is debug metadata; IFEO persistence uses Debugger
+                // (above) or SilentProcessExit (below) — not GlobalFlag directly.
 
                 if (!string.IsNullOrEmpty(debugger))
                 {
@@ -229,6 +230,32 @@ public static class StartupItemEnumerator
                         IsAutoStart = true
                     });
                 }
+
+                // SilentProcessExit (T1546.012): when the monitored image exits,
+                // Windows launches MonitorProcess — typically as the user or service
+                // account that triggered the exit. A writable MonitorProcess binary
+                // is a persistence and/or LPE vector.
+                try
+                {
+                    using var exitKey = subkey.OpenSubKey("SilentProcessExit");
+                    if (exitKey != null)
+                    {
+                        var monitorProcess = exitKey.GetValue("MonitorProcess") as string;
+                        if (!string.IsNullOrEmpty(monitorProcess))
+                        {
+                            results.Add(new DiscoveryContext
+                            {
+                                BinaryPath = ParseCommandPath(monitorProcess),
+                                TriggerType = TriggerType.Startup,
+                                TriggerIdentifier = $"IFEO\\{subkeyName}\\SilentProcessExit",
+                                DisplayName = $"IFEO SilentProcessExit Monitor for {subkeyName}",
+                                RunAsAccount = "VARIES",
+                                IsAutoStart = true
+                            });
+                        }
+                    }
+                }
+                catch { }
             }
         }
         catch { }

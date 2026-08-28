@@ -19,8 +19,9 @@ public class Program
         // Hidden child mode for --verify-load: resolve one DLL name with a writable directory added
         // to the search path and print where the real loader resolved it. Must run before any
         // banner/scan setup. Output is a single token on stdout consumed by the parent.
-        if (args.Length == 3 && args[0] == "--resolve-probe")
-            return LoadProbe.RunChild(args[1], args[2]);
+        if (args.Length >= 3 && args[0] == "--resolve-probe")
+            return LoadProbe.RunChild(args[1], args[2],
+                traditional: args.Length > 3 && args[3] == "traditional");
 
         // Global exception handlers
         AppDomain.CurrentDomain.UnhandledException += (sender, e) =>
