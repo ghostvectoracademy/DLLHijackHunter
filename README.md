@@ -1,12 +1,12 @@
 <p align="center">
   <img src="https://img.shields.io/badge/Platform-Windows-blue?style=for-the-badge&logo=windows" />
-  <img src="https://img.shields.io/badge/.NET-8.0-purple?style=for-the-badge&logo=dotnet" />
+  <img src="https://img.shields.io/badge/.NET-8.0_%7C_10.0-purple?style=for-the-badge&logo=dotnet" />
   <img src="https://img.shields.io/badge/License-MIT-green?style=for-the-badge" />
   <img src="https://img.shields.io/badge/Version-2.1.0-orange?style=for-the-badge" />
 </p>
 
 <h1 align="center">DLLHijackHunter</h1>
-<h4 align="center">By GhostVector Academy</h4>
+<h4 align="center">By <a href="https://projectmerai.com">ProjectMerai</a></h4>
 
 <p align="center">
   <strong>Automated DLL Hijacking Discovery, Validation, and Confirmation</strong><br/>
@@ -46,13 +46,17 @@ flowchart TB
         SG["Soft Gates<br/>(Confidence Adj.)"]
     end
 
-    subgraph Phase3["Phase 3: Canary"]
+    subgraph Phase3["Phase 3: Load Verification (--verify-load)"]
+        LP["LoadProbe<br/>Child-process loader test<br/>Probe DLL placed &amp; removed"]
+    end
+
+    subgraph Phase4["Phase 4: Canary"]
         CB["Canary DLL Builder"]
         TE["Trigger Executor"]
         VF["Verification"]
     end
 
-    subgraph Phase4["Phase 4: Output"]
+    subgraph Phase5["Phase 5: Output"]
         SC["Tiered Scorer"]
         RC["Console Report"]
         RJ["JSON Report"]
@@ -65,8 +69,9 @@ flowchart TB
     SO --> Phase2
     HG --> SG
     Phase2 --> Phase3
-    CB --> TE --> VF
     Phase3 --> Phase4
+    CB --> TE --> VF
+    Phase4 --> Phase5
 ```
 
 ---
@@ -230,7 +235,7 @@ Design and safety notes:
 ### Prerequisites
 
 - **Windows 10/11** or **Windows Server 2016+**
-- **.NET 8.0 Runtime** (or use a self-contained build)
+- **.NET 8.0 or 10.0 Runtime** (or use a self-contained build)
 - **Administrator privileges** recommended (required for ETW, canary deployment, and some service triggers)
 
 ### Build
@@ -370,4 +375,4 @@ MIT
 
 ## Credits
 
-Built by **GhostVector Academy**.
+Built by **[ProjectMerai](https://projectmerai.com)**.
