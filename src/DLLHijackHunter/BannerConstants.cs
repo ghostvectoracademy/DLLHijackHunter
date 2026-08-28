@@ -12,7 +12,7 @@ public static class BannerConstants
         "[cyan1] / /_/ / /___/ /___/ __  / / / / /_/ / /__/ ,< / __  / /_/ / / / / /_/  __/ /    [/]",
         "[cyan1]/_____/_____/_____/_/ /_/_/_/ /\\__,_/\\___/_/|_/_/ /_/\\__,_/_/ /_/\\__/\\___/_/     [/]",
         "[cyan1]                         /___/                                                    [/]",
-        "[bold grey]           By Project Merai  ·  [link=https://projectmerai.com]projectmerai.com[/][/]",
+        "[bold grey]           By ProjectMerai  ·  [link=https://projectmerai.com]projectmerai.com[/][/]",
     };
 
     public static void PrintBanner()
